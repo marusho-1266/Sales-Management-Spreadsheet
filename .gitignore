@@ -1,0 +1,13 @@
+# Node.js
+node_modules/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+@todo.md
+todo.md

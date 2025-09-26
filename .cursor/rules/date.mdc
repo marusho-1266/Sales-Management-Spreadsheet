@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Always run .cursor/script/getDate.js to know what time it is at first.
