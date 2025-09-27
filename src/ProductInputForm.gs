@@ -10,12 +10,62 @@
 function showProductInputForm() {
   const htmlTemplate = HtmlService.createTemplate(getProductInputFormHtml());
   htmlTemplate.nextProductId = getNextProductId();
+  htmlTemplate.supplierData = getSupplierData();
   const htmlOutput = htmlTemplate.evaluate()
     .setWidth(800)
     .setHeight(600)
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   
   SpreadsheetApp.getUi().showModalDialog(htmlOutput, '新商品追加');
+}
+
+/**
+ * 仕入れ元情報を取得（仕入れ元マスターシートから）
+ */
+function getSupplierData() {
+  try {
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const supplierSheet = spreadsheet.getSheetByName('仕入れ元マスター');
+    
+    if (!supplierSheet) {
+      console.warn('仕入れ元マスターシートが見つかりません');
+      return [];
+    }
+    
+    const lastRow = supplierSheet.getLastRow();
+    if (lastRow <= 1) {
+      console.warn('仕入れ元マスターシートにデータがありません');
+      return [];
+    }
+    
+    // 仕入れ元データを取得（サイト名、手数料率、アクセス間隔、有効フラグ）
+    const data = supplierSheet.getRange(2, 1, lastRow - 1, 8).getValues();
+    
+    const suppliers = [];
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      const siteName = row[0];
+      const feeRate = row[5]; // 手数料率（%）
+      const accessInterval = row[6]; // アクセス間隔（秒）
+      const activeFlag = row[7]; // 有効フラグ
+      
+      // 有効な仕入れ元のみを追加
+      if (siteName && activeFlag === '有効') {
+        suppliers.push({
+          name: siteName,
+          feeRate: feeRate / 100, // パーセントを小数に変換
+          feeRatePercent: feeRate + '%',
+          accessInterval: accessInterval
+        });
+      }
+    }
+    
+    return suppliers;
+    
+  } catch (error) {
+    console.error('仕入れ元データ取得エラー:', error);
+    return [];
+  }
 }
 
 /**
@@ -317,13 +367,9 @@ function getProductInputFormHtml() {
             <label for="supplier">仕入れ元 <span class="required">*</span></label>
             <select id="supplier" name="supplier" required>
               <option value="">選択してください</option>
-              <option value="Amazon">Amazon</option>
-              <option value="楽天市場">楽天市場</option>
-              <option value="Yahooショッピング">Yahooショッピング</option>
-              <option value="メルカリ">メルカリ</option>
-              <option value="ヤフオク">ヤフオク</option>
-              <option value="ヤフーフリマ">ヤフーフリマ</option>
-              <option value="個人ショップ">個人ショップ</option>
+              <? for (var i = 0; i < supplierData.length; i++) { ?>
+                <option value="<?= supplierData[i].name ?>"><?= supplierData[i].name ?></option>
+              <? } ?>
             </select>
             <div class="error-message" id="supplierError">仕入れ元は必須です</div>
             <div class="supplier-info" id="supplierInfo" style="display: none;">
@@ -422,6 +468,9 @@ function getProductInputFormHtml() {
   </div>
 
   <script>
+    // サーバーサイドから取得した仕入れ元データ
+    const supplierData = <?= JSON.stringify(supplierData) ?>;
+    
     // 仕入れ元選択時の処理
     document.getElementById('supplier').addEventListener('change', function() {
       updateSupplierInfo();
@@ -451,19 +500,12 @@ function getProductInputFormHtml() {
       const feeRateSpan = document.getElementById('feeRate');
       const accessIntervalSpan = document.getElementById('accessInterval');
       
-      const supplierData = {
-        'Amazon': { fee: '5.0%', interval: '2' },
-        '楽天市場': { fee: '3.0%', interval: '3' },
-        'Yahooショッピング': { fee: '3.5%', interval: '3' },
-        'メルカリ': { fee: '10.0%', interval: '5' },
-        'ヤフオク': { fee: '8.0%', interval: '5' },
-        'ヤフーフリマ': { fee: '10.0%', interval: '5' },
-        '個人ショップ': { fee: '0.0%', interval: '10' }
-      };
+      // サーバーサイドから取得したデータから仕入れ元情報を検索
+      const selectedSupplier = supplierData.find(s => s.name === supplier);
       
-      if (supplier && supplierData[supplier]) {
-        feeRateSpan.textContent = supplierData[supplier].fee;
-        accessIntervalSpan.textContent = supplierData[supplier].interval;
+      if (selectedSupplier) {
+        feeRateSpan.textContent = selectedSupplier.feeRatePercent;
+        accessIntervalSpan.textContent = selectedSupplier.accessInterval;
         supplierInfo.style.display = 'block';
       } else {
         supplierInfo.style.display = 'none';
@@ -476,17 +518,9 @@ function getProductInputFormHtml() {
       const sellingPrice = parseFloat(document.getElementById('sellingPrice').value) || 0;
       const supplier = document.getElementById('supplier').value;
       
-      const feeRates = {
-        'Amazon': 0.05,
-        '楽天市場': 0.03,
-        'Yahooショッピング': 0.035,
-        'メルカリ': 0.10,
-        'ヤフオク': 0.08,
-        'ヤフーフリマ': 0.10,
-        '個人ショップ': 0.00
-      };
-      
-      const feeRate = feeRates[supplier] || 0;
+      // サーバーサイドから取得したデータから手数料率を取得
+      const selectedSupplier = supplierData.find(s => s.name === supplier);
+      const feeRate = selectedSupplier ? selectedSupplier.feeRate : 0;
       const fee = purchasePrice * feeRate;
       const profit = sellingPrice - purchasePrice - fee;
       
