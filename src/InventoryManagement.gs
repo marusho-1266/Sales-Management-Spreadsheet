@@ -66,17 +66,18 @@ function initializeInventorySheet() {
  */
 function addSampleData(sheet) {
   const sampleData = [
-    ['PROD001', 'iPhone 15 Pro 128GB', 'IPH15P-128', 'B0CHX1W1XY', 'Amazon', 'https://amazon.co.jp/dp/B0CHX1W1XY', 120000, 150000, 187, 5, '在庫あり', '', '2025-09-27 00:00:00'],
-    ['PROD002', 'MacBook Air M2 13インチ', 'MBA-M2-13', 'B0B3C2Q5XK', '楽天', 'https://item.rakuten.co.jp/example/macbook-air-m2', 140000, 180000, 1240, 3, '在庫あり', '', '2025-09-27 00:00:00'],
-    ['PROD003', 'AirPods Pro 第2世代', 'APP-2ND', 'B0BDJDRJ9T', 'Yahooショッピング', 'https://shopping.yahoo.co.jp/products/airpods-pro-2nd', 25000, 35000, 56, 0, '売り切れ', '', '2025-09-27 00:00:00'],
-    ['PROD004', 'iPad Air 第5世代', 'IPAD-AIR-5', 'B09V4HCN9V', 'メルカリ', 'https://mercari.com/items/m123456789', 60000, 80000, 461, 2, '在庫あり', '', '2025-09-27 00:00:00'],
-    ['PROD005', 'Apple Watch Series 9', 'AWS-9', 'B0CHX1W1XZ', 'ヤフオク', 'https://page.auctions.yahoo.co.jp/jp/auction/example', 45000, 60000, 39, 1, '在庫あり', '', '2025-09-27 00:00:00']
+    [1, 'iPhone 15 Pro 128GB', 'IPH15P-128', 'B0CHX1W1XY', 'Amazon', 'https://amazon.co.jp/dp/B0CHX1W1XY', 120000, 150000, 187, 5, '在庫あり', '', '2025-09-27 00:00:00'],
+    [2, 'MacBook Air M2 13インチ', 'MBA-M2-13', 'B0B3C2Q5XK', '楽天', 'https://item.rakuten.co.jp/example/macbook-air-m2', 140000, 180000, 1240, 3, '在庫あり', '', '2025-09-27 00:00:00'],
+    [3, 'AirPods Pro 第2世代', 'APP-2ND', 'B0BDJDRJ9T', 'Yahooショッピング', 'https://shopping.yahoo.co.jp/products/airpods-pro-2nd', 25000, 35000, 56, 0, '売り切れ', '', '2025-09-27 00:00:00'],
+    [4, 'iPad Air 第5世代', 'IPAD-AIR-5', 'B09V4HCN9V', 'メルカリ', 'https://mercari.com/items/m123456789', 60000, 80000, 461, 2, '在庫あり', '', '2025-09-27 00:00:00'],
+    [5, 'Apple Watch Series 9', 'AWS-9', 'B0CHX1W1XZ', 'ヤフオク', 'https://page.auctions.yahoo.co.jp/jp/auction/example', 45000, 60000, 39, 1, '在庫あり', '', '2025-09-27 00:00:00']
   ];
   
   const dataRange = sheet.getRange(2, 1, sampleData.length, sampleData[0].length);
   dataRange.setValues(sampleData);
   
   // 数値列の書式設定
+  sheet.getRange(2, 1, sampleData.length, 1).setNumberFormat('0'); // 商品ID
   sheet.getRange(2, 7, sampleData.length, 1).setNumberFormat('#,##0'); // 仕入れ価格
   sheet.getRange(2, 8, sampleData.length, 1).setNumberFormat('#,##0'); // 販売価格
   sheet.getRange(2, 9, sampleData.length, 1).setNumberFormat('0'); // 重量

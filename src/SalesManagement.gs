@@ -66,10 +66,10 @@ function initializeSalesSheet() {
  */
 function addSampleSalesData(sheet) {
   const sampleData = [
-    ['ORD001', '2025-09-25', 'PROD001', 'iPhone 15 Pro 128GB', 'IPH15P-128', 1, 150000, 0, 7500, '', 120000, 'Amazon', 'Joom注文'],
-    ['ORD002', '2025-09-26', 'PROD002', 'MacBook Air M2 13インチ', 'MBA-M2-13', 1, 180000, 0, 9000, '', 140000, '楽天', 'Joom注文'],
-    ['ORD003', '2025-09-26', 'PROD004', 'iPad Air 第5世代', 'IPAD-AIR-5', 2, 80000, 0, 4000, '', 60000, 'メルカリ', 'Joom注文'],
-    ['ORD004', '2025-09-27', 'PROD005', 'Apple Watch Series 9', 'AWS-9', 1, 60000, 0, 3000, '', 45000, 'ヤフオク', 'Joom注文']
+    ['ORD001', '2025-09-25', 1, 'iPhone 15 Pro 128GB', 'IPH15P-128', 1, 150000, 0, 7500, '', 120000, 'Amazon', 'Joom注文'],
+    ['ORD002', '2025-09-26', 2, 'MacBook Air M2 13インチ', 'MBA-M2-13', 1, 180000, 0, 9000, '', 140000, '楽天', 'Joom注文'],
+    ['ORD003', '2025-09-26', 4, 'iPad Air 第5世代', 'IPAD-AIR-5', 2, 80000, 0, 4000, '', 60000, 'メルカリ', 'Joom注文'],
+    ['ORD004', '2025-09-27', 5, 'Apple Watch Series 9', 'AWS-9', 1, 60000, 0, 3000, '', 45000, 'ヤフオク', 'Joom注文']
   ];
   
   const dataRange = sheet.getRange(2, 1, sampleData.length, sampleData[0].length);

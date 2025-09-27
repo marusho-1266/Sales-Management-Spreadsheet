@@ -9,12 +9,55 @@
  */
 function showProductInputForm() {
   const htmlTemplate = HtmlService.createTemplate(getProductInputFormHtml());
+  htmlTemplate.nextProductId = getNextProductId();
   const htmlOutput = htmlTemplate.evaluate()
     .setWidth(800)
     .setHeight(600)
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   
   SpreadsheetApp.getUi().showModalDialog(htmlOutput, '新商品追加');
+}
+
+/**
+ * 次の商品IDを生成（在庫管理シートの最大ID + 1）
+ */
+function getNextProductId() {
+  try {
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const inventorySheet = spreadsheet.getSheetByName('在庫管理');
+    
+    if (!inventorySheet) {
+      // 在庫管理シートが存在しない場合は初期値から開始
+      return 1;
+    }
+    
+    const lastRow = inventorySheet.getLastRow();
+    if (lastRow <= 1) {
+      // ヘッダーのみの場合は初期値から開始
+      return 1;
+    }
+    
+    // 商品ID列（A列）からデータを取得
+    const productIds = inventorySheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    
+    let maxNumber = 0;
+    for (let i = 0; i < productIds.length; i++) {
+      const productId = productIds[i][0];
+      if (productId && typeof productId === 'number' && productId > 0) {
+        if (productId > maxNumber) {
+          maxNumber = productId;
+        }
+      }
+    }
+    
+    // 次の番号を生成（自然数）
+    return maxNumber + 1;
+    
+  } catch (error) {
+    console.error('商品ID生成エラー:', error);
+    // エラー時は初期値1を返す
+    return 1;
+  }
 }
 
 /**
@@ -243,8 +286,8 @@ function getProductInputFormHtml() {
         <div class="form-row">
           <div class="form-group">
             <label for="productId">商品ID <span class="required">*</span></label>
-            <input type="text" id="productId" name="productId" placeholder="例: PROD001" required>
-            <div class="error-message" id="productIdError">商品IDは必須です</div>
+            <input type="text" id="productId" name="productId" value="<?= nextProductId ?>" readonly style="background-color: #f5f5f5; color: #666;">
+            <div class="error-message" id="productIdError">商品IDは自動生成されます（自然数）</div>
           </div>
           
           <div class="form-group">
@@ -327,7 +370,7 @@ function getProductInputFormHtml() {
         <div class="form-row">
           <div class="form-group">
             <label for="stockQuantity">在庫数 <span class="required">*</span></label>
-            <input type="number" id="stockQuantity" name="stockQuantity" placeholder="5" min="0" required>
+            <input type="number" id="stockQuantity" name="stockQuantity" placeholder="5" min="0" value="1" required>
             <div class="error-message" id="stockQuantityError">在庫数は必須です</div>
           </div>
           
@@ -512,8 +555,8 @@ function getProductInputFormHtml() {
         error.style.display = 'none';
       });
       
-      // 必須項目のチェック
-      const requiredFields = ['productId', 'productName', 'supplier', 'supplierUrl', 'purchasePrice', 'sellingPrice', 'weight', 'stockQuantity'];
+      // 必須項目のチェック（商品IDは自動生成のため除外）
+      const requiredFields = ['productName', 'supplier', 'supplierUrl', 'purchasePrice', 'sellingPrice', 'weight', 'stockQuantity'];
       
       requiredFields.forEach(fieldName => {
         const field = document.getElementById(fieldName);
@@ -562,17 +605,10 @@ function getProductInputFormHtml() {
       google.script.host.close();
     }
     
-    // 商品IDの自動生成
-    function generateProductId() {
-      const timestamp = Date.now().toString().slice(-6);
-      const random = Math.random().toString(36).substring(2, 5).toUpperCase();
-      return 'PROD' + timestamp + random;
-    }
-    
     // ページ読み込み時の初期化
     document.addEventListener('DOMContentLoaded', function() {
-      // 商品IDを自動生成
-      document.getElementById('productId').value = generateProductId();
+      // 商品IDはサーバーサイドで自動生成済み
+      console.log('商品ID:', document.getElementById('productId').value);
     });
   </script>
 </body>
