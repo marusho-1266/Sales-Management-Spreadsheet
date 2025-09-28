@@ -20,6 +20,77 @@ function showProductInputForm() {
 }
 
 /**
+ * 新商品を在庫管理シートに保存
+ */
+function saveNewProduct(formData) {
+  try {
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const inventorySheet = spreadsheet.getSheetByName('在庫管理');
+    
+    if (!inventorySheet) {
+      throw new Error('在庫管理シートが見つかりません');
+    }
+    
+    // 現在の日時を取得
+    const now = new Date();
+    const timestamp = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+    
+    // 利益計算（販売価格 - 仕入れ価格 - 手数料）
+    // 手数料は仕入れ価格の5%とする（仮実装）
+    const feeRate = 0.05;
+    const fee = formData.purchasePrice * feeRate;
+    const profit = formData.sellingPrice - formData.purchasePrice - fee;
+    
+    // 新しい行のデータを準備
+    const newRowData = [
+      formData.productId,           // 商品ID
+      formData.productName,         // 商品名
+      formData.sku || '',           // SKU
+      formData.asin || '',          // ASIN
+      formData.supplier,            // 仕入れ元
+      formData.supplierUrl,         // 仕入れ元URL
+      formData.purchasePrice,       // 仕入れ価格
+      formData.sellingPrice,        // 販売価格
+      formData.weight,              // 重量
+      formData.stockQuantity,       // 在庫数
+      formData.stockStatus,         // 在庫ステータス
+      profit,                       // 利益（計算値）
+      timestamp                     // 最終更新日時
+    ];
+    
+    // 在庫管理シートに新しい行を追加
+    inventorySheet.appendRow(newRowData);
+    
+    // 新しく追加された行の書式設定
+    const lastRow = inventorySheet.getLastRow();
+    
+    // 数値列の書式設定
+    inventorySheet.getRange(lastRow, 1, 1, 1).setNumberFormat('0');        // 商品ID
+    inventorySheet.getRange(lastRow, 7, 1, 1).setNumberFormat('#,##0');    // 仕入れ価格
+    inventorySheet.getRange(lastRow, 8, 1, 1).setNumberFormat('#,##0');    // 販売価格
+    inventorySheet.getRange(lastRow, 9, 1, 1).setNumberFormat('0');        // 重量
+    inventorySheet.getRange(lastRow, 10, 1, 1).setNumberFormat('0');       // 在庫数
+    inventorySheet.getRange(lastRow, 12, 1, 1).setNumberFormat('#,##0');   // 利益
+    
+    console.log('新商品が正常に保存されました:', formData.productName);
+    
+    return {
+      success: true,
+      message: '商品が正常に保存されました',
+      productId: formData.productId,
+      productName: formData.productName
+    };
+    
+  } catch (error) {
+    console.error('商品保存エラー:', error);
+    return {
+      success: false,
+      message: '商品の保存中にエラーが発生しました: ' + error.message
+    };
+  }
+}
+
+/**
  * 仕入れ元情報を取得（仕入れ元マスターシートから）
  */
 function getSupplierData() {
@@ -469,7 +540,7 @@ function getProductInputFormHtml() {
 
   <script>
     // サーバーサイドから取得した仕入れ元データ
-    const supplierData = <?= JSON.stringify(supplierData) ?>;
+    var supplierData = <?= JSON.stringify(supplierData) ?>;
     
     // 仕入れ元選択時の処理
     document.getElementById('supplier').addEventListener('change', function() {
@@ -483,8 +554,8 @@ function getProductInputFormHtml() {
     
     // 在庫数入力時の処理
     document.getElementById('stockQuantity').addEventListener('input', function() {
-      const quantity = parseInt(this.value);
-      const statusSelect = document.getElementById('stockStatus');
+      var quantity = parseInt(this.value);
+      var statusSelect = document.getElementById('stockStatus');
       
       if (quantity === 0) {
         statusSelect.value = '売り切れ';
@@ -495,13 +566,19 @@ function getProductInputFormHtml() {
     
     // 仕入れ元情報の更新
     function updateSupplierInfo() {
-      const supplier = document.getElementById('supplier').value;
-      const supplierInfo = document.getElementById('supplierInfo');
-      const feeRateSpan = document.getElementById('feeRate');
-      const accessIntervalSpan = document.getElementById('accessInterval');
+      var supplier = document.getElementById('supplier').value;
+      var supplierInfo = document.getElementById('supplierInfo');
+      var feeRateSpan = document.getElementById('feeRate');
+      var accessIntervalSpan = document.getElementById('accessInterval');
       
       // サーバーサイドから取得したデータから仕入れ元情報を検索
-      const selectedSupplier = supplierData.find(s => s.name === supplier);
+      var selectedSupplier = null;
+      for (var i = 0; i < supplierData.length; i++) {
+        if (supplierData[i].name === supplier) {
+          selectedSupplier = supplierData[i];
+          break;
+        }
+      }
       
       if (selectedSupplier) {
         feeRateSpan.textContent = selectedSupplier.feeRatePercent;
@@ -514,25 +591,22 @@ function getProductInputFormHtml() {
     
     // 価格プレビューの更新
     function updatePricePreview() {
-      const purchasePrice = parseFloat(document.getElementById('purchasePrice').value) || 0;
-      const sellingPrice = parseFloat(document.getElementById('sellingPrice').value) || 0;
-      const supplier = document.getElementById('supplier').value;
+      var purchasePrice = parseFloat(document.getElementById('purchasePrice').value) || 0;
+      var sellingPrice = parseFloat(document.getElementById('sellingPrice').value) || 0;
+      var supplier = document.getElementById('supplier').value;
       
-      // サーバーサイドから取得したデータから手数料率を取得
-      const selectedSupplier = supplierData.find(s => s.name === supplier);
-      const feeRate = selectedSupplier ? selectedSupplier.feeRate : 0;
-      const fee = purchasePrice * feeRate;
-      const profit = sellingPrice - purchasePrice - fee;
+      // 利益計算（手数料は考慮しない）
+      var profit = sellingPrice - purchasePrice;
       
       // プレビューを表示
       document.getElementById('previewSellingPrice').textContent = '¥' + sellingPrice.toLocaleString();
       document.getElementById('previewPurchasePrice').textContent = '¥' + purchasePrice.toLocaleString();
-      document.getElementById('previewFeeRate').textContent = (feeRate * 100).toFixed(1) + '%';
-      document.getElementById('previewFee').textContent = '¥' + fee.toLocaleString();
+      document.getElementById('previewFeeRate').textContent = '0.0%';
+      document.getElementById('previewFee').textContent = '¥0';
       document.getElementById('previewProfit').textContent = '¥' + profit.toLocaleString();
       
       // 利益の色分け
-      const profitElement = document.getElementById('previewProfit');
+      var profitElement = document.getElementById('previewProfit');
       if (profit > 0) {
         profitElement.style.color = '#2d5016';
       } else {
@@ -552,8 +626,8 @@ function getProductInputFormHtml() {
         document.body.classList.add('loading');
         
         // フォームデータを収集
-        const formData = {
-          productId: document.getElementById('productId').value,
+        var formData = {
+          productId: parseInt(document.getElementById('productId').value),
           productName: document.getElementById('productName').value,
           sku: document.getElementById('sku').value,
           asin: document.getElementById('asin').value,
@@ -567,34 +641,75 @@ function getProductInputFormHtml() {
           notes: document.getElementById('notes').value
         };
         
-        // 成功メッセージを表示（実際の保存処理は実装しない）
-        setTimeout(() => {
-          document.body.classList.remove('loading');
-          document.getElementById('successMessage').style.display = 'block';
-          
-          // 3秒後にフォームを閉じる
-          setTimeout(() => {
-            closeForm();
-          }, 3000);
-        }, 1000);
+        // サーバーサイドの保存関数を呼び出し
+        google.script.run
+          .withSuccessHandler(onSaveSuccess)
+          .withFailureHandler(onSaveError)
+          .saveNewProduct(formData);
       }
+    }
+    
+    // 保存成功時の処理
+    function onSaveSuccess(result) {
+      document.body.classList.remove('loading');
+      
+      if (result.success) {
+        // 成功メッセージを表示
+        var successMessage = document.getElementById('successMessage');
+        successMessage.innerHTML = '✅ ' + result.message + '<br>商品ID: ' + result.productId + '<br>商品名: ' + result.productName;
+        successMessage.style.display = 'block';
+        
+        // フォームをクリア（商品IDは再生成）
+        document.getElementById('productForm').reset();
+        // 商品IDを再生成（新しい商品追加のため）
+        generateNewProductId();
+        
+        // 3秒後にフォームを閉じる
+        setTimeout(function() {
+          closeForm();
+        }, 3000);
+      } else {
+        // エラーメッセージを表示
+        showError(result.message);
+      }
+    }
+    
+    // 保存失敗時の処理
+    function onSaveError(error) {
+      document.body.classList.remove('loading');
+      console.error('保存エラー:', error);
+      showError('サーバーエラーが発生しました: ' + error.message);
+    }
+    
+    // エラーメッセージ表示
+    function showError(message) {
+      var successMessage = document.getElementById('successMessage');
+      successMessage.innerHTML = '❌ ' + message;
+      successMessage.style.display = 'block';
+      successMessage.style.background = '#f4cccc';
+      successMessage.style.color = '#ea4335';
+      
+      // 5秒後にエラーメッセージを非表示
+      setTimeout(function() {
+        successMessage.style.display = 'none';
+      }, 5000);
     }
     
     // フォームバリデーション
     function validateForm() {
-      let isValid = true;
+      var isValid = true;
       
       // エラーメッセージをクリア
-      document.querySelectorAll('.error-message').forEach(error => {
+      document.querySelectorAll('.error-message').forEach(function(error) {
         error.style.display = 'none';
       });
       
       // 必須項目のチェック（商品IDは自動生成のため除外）
-      const requiredFields = ['productName', 'supplier', 'supplierUrl', 'purchasePrice', 'sellingPrice', 'weight', 'stockQuantity'];
+      var requiredFields = ['productName', 'supplier', 'supplierUrl', 'purchasePrice', 'sellingPrice', 'weight', 'stockQuantity'];
       
-      requiredFields.forEach(fieldName => {
-        const field = document.getElementById(fieldName);
-        const errorElement = document.getElementById(fieldName + 'Error');
+      requiredFields.forEach(function(fieldName) {
+        var field = document.getElementById(fieldName);
+        var errorElement = document.getElementById(fieldName + 'Error');
         
         if (!field.value.trim()) {
           errorElement.style.display = 'block';
@@ -603,8 +718,8 @@ function getProductInputFormHtml() {
       });
       
       // URLの形式チェック
-      const urlField = document.getElementById('supplierUrl');
-      const urlError = document.getElementById('supplierUrlError');
+      var urlField = document.getElementById('supplierUrl');
+      var urlError = document.getElementById('supplierUrlError');
       
       if (urlField.value && !isValidUrl(urlField.value)) {
         urlError.style.display = 'block';
@@ -612,8 +727,8 @@ function getProductInputFormHtml() {
       }
       
       // 価格の妥当性チェック
-      const purchasePrice = parseFloat(document.getElementById('purchasePrice').value);
-      const sellingPrice = parseFloat(document.getElementById('sellingPrice').value);
+      var purchasePrice = parseFloat(document.getElementById('purchasePrice').value);
+      var sellingPrice = parseFloat(document.getElementById('sellingPrice').value);
       
       if (sellingPrice <= purchasePrice) {
         document.getElementById('sellingPriceError').textContent = '販売価格は仕入れ価格より高く設定してください';
@@ -637,6 +752,18 @@ function getProductInputFormHtml() {
     // フォームを閉じる
     function closeForm() {
       google.script.host.close();
+    }
+    
+    // 新しい商品IDを生成
+    function generateNewProductId() {
+      google.script.run
+        .withSuccessHandler(function(newId) {
+          document.getElementById('productId').value = newId;
+        })
+        .withFailureHandler(function(error) {
+          console.error('商品ID生成エラー:', error);
+        })
+        .getNextProductId();
     }
     
     // ページ読み込み時の初期化
