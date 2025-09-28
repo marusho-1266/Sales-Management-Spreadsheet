@@ -43,7 +43,9 @@ function setupCustomMenu() {
     )
     .addSubMenu(
       ui.createMenu('📈 売上管理')
-        .addItem('注文データ入力', 'showSalesInputForm')
+        .addItem('注文データ入力', 'showSalesInputFormMenu')
+        .addItem('売上一覧表示', 'showSalesList')
+        .addItem('売上統計表示', 'showSalesStatistics')
     )
     .addSubMenu(
       ui.createMenu('🔄 在庫チェック')
@@ -75,9 +77,16 @@ function showProductDeleteMenu() {
 /**
  * 売上データ入力フォームの表示
  */
-function showSalesInputForm() {
-  const ui = SpreadsheetApp.getUi();
-  ui.alert('注文データ入力', '注文データ入力機能は今後実装予定です。', ui.ButtonSet.OK);
+function showSalesInputFormMenu() {
+  // SalesManagement.gsの関数を呼び出し
+  try {
+    // 直接関数を呼び出し（GASでは同じプロジェクト内の関数は直接呼び出し可能）
+    showSalesInputForm();
+  } catch (error) {
+    console.error('売上データ入力フォームの表示中にエラーが発生しました:', error);
+    const ui = SpreadsheetApp.getUi();
+    ui.alert('エラー', '売上データ入力フォームの表示中にエラーが発生しました。', ui.ButtonSet.OK);
+  }
 }
 
 /**
@@ -118,6 +127,32 @@ function exportJoomCsv() {
 function showNotificationSettings() {
   const ui = SpreadsheetApp.getUi();
   ui.alert('通知設定', '通知設定機能は今後実装予定です。', ui.ButtonSet.OK);
+}
+
+/**
+ * 売上統計表示
+ */
+function showSalesStatistics() {
+  try {
+    const stats = getSalesStatistics();
+    if (stats) {
+      const message = `売上統計:\n\n` +
+        `総売上: ¥${stats.totalSales.toLocaleString()}\n` +
+        `総利益: ¥${stats.totalProfit.toLocaleString()}\n` +
+        `注文数: ${stats.orderCount}件\n` +
+        `平均注文単価: ¥${Math.round(stats.averageOrderValue).toLocaleString()}`;
+      
+      const ui = SpreadsheetApp.getUi();
+      ui.alert('売上統計', message, ui.ButtonSet.OK);
+    } else {
+      const ui = SpreadsheetApp.getUi();
+      ui.alert('エラー', '売上統計の取得に失敗しました。', ui.ButtonSet.OK);
+    }
+  } catch (error) {
+    console.error('売上統計表示中にエラーが発生しました:', error);
+    const ui = SpreadsheetApp.getUi();
+    ui.alert('エラー', '売上統計の表示中にエラーが発生しました。', ui.ButtonSet.OK);
+  }
 }
 
 /**

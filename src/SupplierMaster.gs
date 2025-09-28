@@ -72,7 +72,7 @@ function addSampleSupplierData(sheet) {
   dataRange.setValues(sampleData);
   
   // 数値列の書式設定
-  sheet.getRange(2, 6, sampleData.length, 1).setNumberFormat('0.0%'); // 手数料率
+  sheet.getRange(2, 6, sampleData.length, 1).setNumberFormat('0.0'); // 手数料率（パーセント値として表示）
   sheet.getRange(2, 7, sampleData.length, 1).setNumberFormat('0'); // アクセス間隔
 }
 
@@ -100,9 +100,9 @@ function setupSupplierConditionalFormatting(sheet) {
   // 手数料率による色分け
   const feeRange = sheet.getRange('F:F');
   
-  // 手数料率が高い - 黄色
+  // 手数料率が高い - 黄色（8%以上）
   const highFeeRule = SpreadsheetApp.newConditionalFormatRule()
-    .whenNumberGreaterThan(0.08)
+    .whenNumberGreaterThan(8.0)
     .setBackground('#fff2cc')
     .setRanges([feeRange])
     .build();
