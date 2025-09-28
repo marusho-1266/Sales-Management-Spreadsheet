@@ -352,6 +352,71 @@ function getProductInputFormHtml() {
       pointer-events: none;
     }
     
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.9);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      flex-direction: column;
+    }
+    
+    .loading-spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #4285f4;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 20px;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .loading-message {
+      font-size: 16px;
+      color: #333;
+      font-weight: 600;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    
+    .loading-details {
+      font-size: 14px;
+      color: #666;
+      text-align: center;
+    }
+    
+    .progress-bar {
+      width: 300px;
+      height: 6px;
+      background: #e1e5e9;
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 15px;
+    }
+    
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4285f4, #34a853);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+    
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+    
     .supplier-info {
       background: #f8f9fa;
       padding: 15px;
@@ -390,6 +455,16 @@ function getProductInputFormHtml() {
   </style>
 </head>
 <body>
+  <!-- ローディングオーバーレイ -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-message" id="loadingMessage">商品を保存中...</div>
+    <div class="loading-details" id="loadingDetails">しばらくお待ちください</div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+  </div>
+
   <div class="container">
     <div class="header">
       <h1>📦 新商品追加</h1>
@@ -542,6 +617,16 @@ function getProductInputFormHtml() {
     // サーバーサイドから取得した仕入れ元データ
     var supplierData = <?= JSON.stringify(supplierData) ?>;
     
+    // 処理状態管理
+    var isProcessing = false;
+    var progressSteps = [
+      'データ検証中...',
+      'スプレッドシートに保存中...',
+      '書式設定中...',
+      '完了！'
+    ];
+    var currentStep = 0;
+    
     // 仕入れ元選択時の処理
     document.getElementById('supplier').addEventListener('change', function() {
       updateSupplierInfo();
@@ -619,11 +704,56 @@ function getProductInputFormHtml() {
       }
     }
     
+    // ローディング表示の制御
+    function showLoadingOverlay() {
+      isProcessing = true;
+      currentStep = 0;
+      document.getElementById('loadingOverlay').style.display = 'flex';
+      document.getElementById('loadingMessage').textContent = progressSteps[0];
+      document.getElementById('loadingDetails').textContent = 'しばらくお待ちください';
+      document.getElementById('progressFill').style.width = '0%';
+      
+      // ボタンを無効化
+      var buttons = document.querySelectorAll('.btn');
+      buttons.forEach(function(btn) {
+        btn.disabled = true;
+      });
+    }
+    
+    function hideLoadingOverlay() {
+      isProcessing = false;
+      document.getElementById('loadingOverlay').style.display = 'none';
+      
+      // ボタンを有効化
+      var buttons = document.querySelectorAll('.btn');
+      buttons.forEach(function(btn) {
+        btn.disabled = false;
+      });
+    }
+    
+    function updateProgress(step, details) {
+      currentStep = step;
+      var progress = ((step + 1) / progressSteps.length) * 100;
+      
+      document.getElementById('loadingMessage').textContent = progressSteps[step];
+      document.getElementById('loadingDetails').textContent = details || '処理中...';
+      document.getElementById('progressFill').style.width = progress + '%';
+    }
+    
     // フォームの保存
     function saveProduct() {
+      // 重複送信防止
+      if (isProcessing) {
+        console.log('処理中です。しばらくお待ちください。');
+        return;
+      }
+      
       if (validateForm()) {
-        // ローディング状態
-        document.body.classList.add('loading');
+        // ローディング表示開始
+        showLoadingOverlay();
+        
+        // プログレス更新（データ検証）
+        updateProgress(0, '入力データを検証しています...');
         
         // フォームデータを収集
         var formData = {
@@ -641,6 +771,11 @@ function getProductInputFormHtml() {
           notes: document.getElementById('notes').value
         };
         
+        // プログレス更新（保存開始）
+        setTimeout(function() {
+          updateProgress(1, 'スプレッドシートに保存中...');
+        }, 500);
+        
         // サーバーサイドの保存関数を呼び出し
         google.script.run
           .withSuccessHandler(onSaveSuccess)
@@ -651,32 +786,46 @@ function getProductInputFormHtml() {
     
     // 保存成功時の処理
     function onSaveSuccess(result) {
-      document.body.classList.remove('loading');
-      
       if (result.success) {
-        // 成功メッセージを表示
-        var successMessage = document.getElementById('successMessage');
-        successMessage.innerHTML = '✅ ' + result.message + '<br>商品ID: ' + result.productId + '<br>商品名: ' + result.productName;
-        successMessage.style.display = 'block';
+        // プログレス更新（書式設定）
+        updateProgress(2, '書式設定中...');
         
-        // フォームをクリア（商品IDは再生成）
-        document.getElementById('productForm').reset();
-        // 商品IDを再生成（新しい商品追加のため）
-        generateNewProductId();
-        
-        // 3秒後にフォームを閉じる
         setTimeout(function() {
-          closeForm();
-        }, 3000);
+          // プログレス更新（完了）
+          updateProgress(3, '保存完了');
+          
+          setTimeout(function() {
+            // ローディング表示を非表示
+            hideLoadingOverlay();
+            
+            // 成功メッセージを表示
+            var successMessage = document.getElementById('successMessage');
+            successMessage.innerHTML = '✅ ' + result.message + '<br>商品ID: ' + result.productId + '<br>商品名: ' + result.productName;
+            successMessage.style.display = 'block';
+            successMessage.style.background = '#d9ead3';
+            successMessage.style.color = '#2d5016';
+            
+            // フォームをクリア（商品IDは再生成）
+            document.getElementById('productForm').reset();
+            // 商品IDを再生成（新しい商品追加のため）
+            generateNewProductId();
+            
+            // 3秒後にフォームを閉じる
+            setTimeout(function() {
+              closeForm();
+            }, 3000);
+          }, 800);
+        }, 500);
       } else {
         // エラーメッセージを表示
+        hideLoadingOverlay();
         showError(result.message);
       }
     }
     
     // 保存失敗時の処理
     function onSaveError(error) {
-      document.body.classList.remove('loading');
+      hideLoadingOverlay();
       console.error('保存エラー:', error);
       showError('サーバーエラーが発生しました: ' + error.message);
     }
@@ -689,10 +838,13 @@ function getProductInputFormHtml() {
       successMessage.style.background = '#f4cccc';
       successMessage.style.color = '#ea4335';
       
+      // エラーメッセージを自動で非表示にしない（ユーザーが確認できるように）
       // 5秒後にエラーメッセージを非表示
       setTimeout(function() {
         successMessage.style.display = 'none';
-      }, 5000);
+        successMessage.style.background = '#d9ead3';
+        successMessage.style.color = '#2d5016';
+      }, 8000);
     }
     
     // フォームバリデーション
