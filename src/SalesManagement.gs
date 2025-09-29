@@ -549,6 +549,164 @@ function getSalesInputFormHtml() {
        0% { transform: rotate(0deg); }
        100% { transform: rotate(360deg); }
      }
+     
+     /* 商品選択モーダルスタイル */
+     .product-selection-container {
+       display: flex;
+       gap: 10px;
+       align-items: center;
+     }
+     
+     .product-selection-container input[readonly] {
+       flex: 1;
+       background-color: #f8f9fa;
+       color: #6c757d;
+       cursor: pointer;
+     }
+     
+     .btn-select-product {
+       padding: 12px 20px;
+       background: #34a853;
+       color: white;
+       border: none;
+       border-radius: 6px;
+       cursor: pointer;
+       font-size: 14px;
+       font-weight: 600;
+       transition: background-color 0.3s ease;
+     }
+     
+     .btn-select-product:hover {
+       background: #2e7d32;
+     }
+     
+     /* モーダルダイアログ */
+     .modal {
+       display: none;
+       position: fixed;
+       z-index: 2000;
+       left: 0;
+       top: 0;
+       width: 100%;
+       height: 100%;
+       background-color: rgba(0, 0, 0, 0.5);
+     }
+     
+     .modal-content {
+       background-color: #fefefe;
+       margin: 5% auto;
+       padding: 0;
+       border-radius: 8px;
+       width: 90%;
+       max-width: 1000px;
+       max-height: 80vh;
+       overflow: hidden;
+       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+     }
+     
+     .modal-header {
+       background: #34a853;
+       color: white;
+       padding: 20px;
+       display: flex;
+       justify-content: space-between;
+       align-items: center;
+     }
+     
+     .modal-header h3 {
+       margin: 0;
+       font-size: 18px;
+     }
+     
+     .close {
+       color: white;
+       font-size: 28px;
+       font-weight: bold;
+       cursor: pointer;
+       line-height: 1;
+     }
+     
+     .close:hover {
+       opacity: 0.7;
+     }
+     
+     .modal-body {
+       padding: 20px;
+       max-height: 60vh;
+       overflow-y: auto;
+     }
+     
+     .search-container {
+       margin-bottom: 20px;
+     }
+     
+     .search-container input {
+       width: 100%;
+       padding: 12px;
+       border: 2px solid #e1e5e9;
+       border-radius: 6px;
+       font-size: 14px;
+     }
+     
+     .search-container input:focus {
+       outline: none;
+       border-color: #34a853;
+       box-shadow: 0 0 0 3px rgba(52, 168, 83, 0.1);
+     }
+     
+     .product-list-container {
+       max-height: 400px;
+       overflow-y: auto;
+       border: 1px solid #e1e5e9;
+       border-radius: 6px;
+     }
+     
+     .product-table {
+       width: 100%;
+       border-collapse: collapse;
+       margin: 0;
+     }
+     
+     .product-table th {
+       background: #f8f9fa;
+       padding: 12px 8px;
+       text-align: left;
+       font-weight: 600;
+       border-bottom: 2px solid #e1e5e9;
+       position: sticky;
+       top: 0;
+       z-index: 10;
+     }
+     
+     .product-table td {
+       padding: 12px 8px;
+       border-bottom: 1px solid #e1e5e9;
+       vertical-align: middle;
+     }
+     
+     .product-table tr:hover {
+       background-color: #f8f9fa;
+     }
+     
+     .product-table tr.hidden {
+       display: none;
+     }
+     
+     .btn-select {
+       padding: 6px 12px;
+       background: #34a853;
+       color: white;
+       border: none;
+       border-radius: 4px;
+       cursor: pointer;
+       font-size: 12px;
+       font-weight: 600;
+       transition: background-color 0.3s ease;
+     }
+     
+     .btn-select:hover {
+       background: #2e7d32;
+     }
   </style>
 </head>
 <body>
@@ -585,20 +743,11 @@ function getSalesInputFormHtml() {
         
         <div class="form-group">
           <label for="productId">商品選択 *</label>
-          <select id="productId" name="productId" required onchange="updateProductInfo()">
-            <option value="">商品を選択してください</option>
-            <? for (var i = 0; i < inventoryData.length; i++) { ?>
-              <option value="<?= inventoryData[i].id ?>" 
-                      data-name="<?= inventoryData[i].name ?>"
-                      data-sku="<?= inventoryData[i].sku ?>"
-                      data-asin="<?= inventoryData[i].asin ?>"
-                      data-stock-status="<?= inventoryData[i].stockStatus ?>"
-                      data-purchase-price="<?= inventoryData[i].purchasePrice ?>"
-                      data-selling-price="<?= inventoryData[i].sellingPrice ?>">
-                <?= inventoryData[i].name ?> (SKU: <?= inventoryData[i].sku ?>, 在庫: <?= inventoryData[i].stockStatus ?>)
-              </option>
-            <? } ?>
-          </select>
+          <div class="product-selection-container">
+            <input type="hidden" id="productId" name="productId" required>
+            <input type="text" id="productDisplay" placeholder="商品を選択してください" readonly onclick="openProductModal()">
+            <button type="button" class="btn-select-product" onclick="openProductModal()">選択</button>
+          </div>
         </div>
         
         <div class="form-row">
@@ -658,6 +807,56 @@ function getSalesInputFormHtml() {
     </div>
   </div>
 
+  <!-- 商品選択モーダル -->
+  <div id="productModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>商品選択</h3>
+        <span class="close" onclick="closeProductModal()">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div class="search-container">
+          <input type="text" id="productSearch" placeholder="商品名、SKU、ASINで検索..." onkeyup="filterProducts()">
+        </div>
+        <div class="product-list-container">
+          <table id="productTable" class="product-table">
+            <thead>
+              <tr>
+                <th>商品名</th>
+                <th>SKU</th>
+                <th>ASIN</th>
+                <th>在庫</th>
+                <th>仕入れ価格</th>
+                <th>販売価格</th>
+                <th>選択</th>
+              </tr>
+            </thead>
+            <tbody id="productTableBody">
+              <? for (var i = 0; i < inventoryData.length; i++) { ?>
+                <tr class="product-row" 
+                    data-id="<?= inventoryData[i].id ?>"
+                    data-name="<?= inventoryData[i].name ?>"
+                    data-sku="<?= inventoryData[i].sku ?>"
+                    data-asin="<?= inventoryData[i].asin ?>"
+                    data-stock-status="<?= inventoryData[i].stockStatus ?>"
+                    data-purchase-price="<?= inventoryData[i].purchasePrice ?>"
+                    data-selling-price="<?= inventoryData[i].sellingPrice ?>">
+                  <td><?= inventoryData[i].name ?></td>
+                  <td><?= inventoryData[i].sku ?></td>
+                  <td><?= inventoryData[i].asin ?></td>
+                  <td><?= inventoryData[i].stockStatus ?></td>
+                  <td>¥<?= parseInt(inventoryData[i].purchasePrice).toLocaleString() ?></td>
+                  <td>¥<?= parseInt(inventoryData[i].sellingPrice).toLocaleString() ?></td>
+                  <td><button type="button" class="btn-select" onclick="selectProduct(this)">選択</button></td>
+                </tr>
+              <? } ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
    <script>
      // グローバル変数
      var isProcessing = false;
@@ -704,27 +903,6 @@ function getSalesInputFormHtml() {
        document.getElementById('progressFill').style.width = progress + '%';
      }
      
-    // 商品選択時の処理
-    function updateProductInfo() {
-     const select = document.getElementById('productId');
-     const option = select.options[select.selectedIndex];
-     
-     if (option.value) {
-       // 仕入れ価格フィールドにデフォルト値を設定
-       document.getElementById('purchasePrice').value = option.dataset.purchasePrice;
-       
-       // 販売価格フィールドにデフォルト値を設定
-       document.getElementById('sellingPrice').value = option.dataset.sellingPrice;
-       
-       // 利益計算を実行
-       calculateProfit();
-     } else {
-       // 仕入れ価格フィールドをクリア
-       document.getElementById('purchasePrice').value = '';
-       // 販売価格フィールドをクリア
-       document.getElementById('sellingPrice').value = '';
-     }
-   }
     
     // 数量の検証（在庫数管理がないため、基本的な検証のみ）
     function validateQuantity() {
@@ -803,14 +981,23 @@ function getSalesInputFormHtml() {
        // プログレス更新（データ検証）
        updateProgress(0, '入力データを検証しています...');
        
+       // 商品選択の検証
+       const productId = document.getElementById('productId').value;
+       if (!productId || !window.selectedProductData) {
+         hideLoadingOverlay();
+         document.getElementById('errorMessage').textContent = '商品を選択してください。';
+         document.getElementById('errorMessage').style.display = 'block';
+         return;
+       }
+       
        // フォームデータを取得
        const formData = {
          orderId: parseInt(document.getElementById('orderId').value),
          orderDate: document.getElementById('orderDate').value,
-         productId: parseInt(document.getElementById('productId').value),
-         sku: document.getElementById('productId').options[document.getElementById('productId').selectedIndex].dataset.sku,
-         asin: document.getElementById('productId').options[document.getElementById('productId').selectedIndex].dataset.asin,
-         productName: document.getElementById('productId').options[document.getElementById('productId').selectedIndex].dataset.name,
+         productId: parseInt(productId),
+         sku: window.selectedProductData.sku,
+         asin: window.selectedProductData.asin,
+         productName: window.selectedProductData.name,
          quantity: parseInt(document.getElementById('quantity').value),
          sellingPrice: parseInt(document.getElementById('sellingPrice').value),
          purchasePrice: parseInt(document.getElementById('purchasePrice').value),
@@ -878,6 +1065,81 @@ function getSalesInputFormHtml() {
     // ダイアログを閉じる
     function closeDialog() {
       google.script.host.close();
+    }
+    
+    // 商品選択モーダルを開く
+    function openProductModal() {
+      document.getElementById('productModal').style.display = 'block';
+      document.getElementById('productSearch').value = '';
+      filterProducts(); // 全商品を表示
+    }
+    
+    // 商品選択モーダルを閉じる
+    function closeProductModal() {
+      document.getElementById('productModal').style.display = 'none';
+    }
+    
+    // 商品検索・フィルタ機能
+    function filterProducts() {
+      const searchTerm = document.getElementById('productSearch').value.toLowerCase();
+      const rows = document.querySelectorAll('.product-row');
+      
+      rows.forEach(function(row) {
+        const productName = row.querySelector('td:nth-child(1)').textContent.toLowerCase();
+        const sku = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+        const asin = row.querySelector('td:nth-child(3)').textContent.toLowerCase();
+        
+        if (productName.includes(searchTerm) || sku.includes(searchTerm) || asin.includes(searchTerm)) {
+          row.classList.remove('hidden');
+        } else {
+          row.classList.add('hidden');
+        }
+      });
+    }
+    
+    // 商品を選択
+    function selectProduct(button) {
+      const row = button.closest('tr');
+      const productId = row.dataset.id;
+      const productName = row.dataset.name;
+      const sku = row.dataset.sku;
+      const asin = row.dataset.asin;
+      const stockStatus = row.dataset.stockStatus;
+      const purchasePrice = row.dataset.purchasePrice;
+      const sellingPrice = row.dataset.sellingPrice;
+      
+      // フォームに値を設定
+      document.getElementById('productId').value = productId;
+      document.getElementById('productDisplay').value = productName + ' (SKU: ' + sku + ', 在庫: ' + stockStatus + ')';
+      
+      // 価格フィールドに値を設定
+      document.getElementById('purchasePrice').value = purchasePrice;
+      document.getElementById('sellingPrice').value = sellingPrice;
+      
+      // 商品データをグローバル変数に保存（フォーム送信用）
+      window.selectedProductData = {
+        id: productId,
+        name: productName,
+        sku: sku,
+        asin: asin,
+        stockStatus: stockStatus,
+        purchasePrice: purchasePrice,
+        sellingPrice: sellingPrice
+      };
+      
+      // 利益計算を実行
+      calculateProfit();
+      
+      // モーダルを閉じる
+      closeProductModal();
+    }
+    
+    // モーダル外をクリックした時に閉じる
+    window.onclick = function(event) {
+      const modal = document.getElementById('productModal');
+      if (event.target == modal) {
+        closeProductModal();
+      }
     }
   </script>
 </body>
