@@ -35,11 +35,9 @@ function saveNewProduct(formData) {
     const now = new Date();
     const timestamp = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
     
-    // 利益計算（販売価格 - 仕入れ価格 - 手数料）
-    // 手数料は仕入れ価格の5%とする（仮実装）
-    const feeRate = 0.05;
-    const fee = formData.purchasePrice * feeRate;
-    const profit = formData.sellingPrice - formData.purchasePrice - fee;
+    // 利益計算（販売価格 - 仕入れ価格）
+    // 商品の仕入れには手数料が発生しないため、手数料は考慮しない
+    const profit = formData.sellingPrice - formData.purchasePrice;
     
     // 新しい行のデータを準備
     const newRowData = [
@@ -52,7 +50,6 @@ function saveNewProduct(formData) {
       formData.purchasePrice,       // 仕入れ価格
       formData.sellingPrice,        // 販売価格
       formData.weight,              // 重量
-      formData.stockQuantity,       // 在庫数
       formData.stockStatus,         // 在庫ステータス
       profit,                       // 利益（計算値）
       timestamp                     // 最終更新日時
@@ -69,8 +66,7 @@ function saveNewProduct(formData) {
     inventorySheet.getRange(lastRow, 7, 1, 1).setNumberFormat('#,##0');    // 仕入れ価格
     inventorySheet.getRange(lastRow, 8, 1, 1).setNumberFormat('#,##0');    // 販売価格
     inventorySheet.getRange(lastRow, 9, 1, 1).setNumberFormat('0');        // 重量
-    inventorySheet.getRange(lastRow, 10, 1, 1).setNumberFormat('0');       // 在庫数
-    inventorySheet.getRange(lastRow, 12, 1, 1).setNumberFormat('#,##0');   // 利益
+    inventorySheet.getRange(lastRow, 11, 1, 1).setNumberFormat('#,##0');   // 利益
     
     console.log('新商品が正常に保存されました:', formData.productName);
     
@@ -122,12 +118,13 @@ function getSupplierData() {
       
       // 有効な仕入れ元のみを追加
       if (siteName && activeFlag === '有効') {
-        suppliers.push({
+        const supplier = {
           name: siteName,
-          feeRate: feeRate / 100, // パーセントを小数に変換
+          feeRate: feeRate / 100, // パーセントを小数に変換（5.0 → 0.05）
           feeRatePercent: feeRate + '%',
           accessInterval: accessInterval
-        });
+        };
+        suppliers.push(supplier);
       }
     }
     
@@ -519,7 +516,7 @@ function getProductInputFormHtml() {
             </select>
             <div class="error-message" id="supplierError">仕入れ元は必須です</div>
             <div class="supplier-info" id="supplierInfo" style="display: none;">
-              手数料率: <span id="feeRate"></span> | アクセス間隔: <span id="accessInterval"></span>秒
+              アクセス間隔: <span id="accessInterval"></span>秒
             </div>
           </div>
           
@@ -559,21 +556,15 @@ function getProductInputFormHtml() {
         <!-- 在庫情報セクション -->
         <div class="section-title">📦 在庫情報</div>
         
-        <div class="form-row">
-          <div class="form-group">
-            <label for="stockQuantity">在庫数 <span class="required">*</span></label>
-            <input type="number" id="stockQuantity" name="stockQuantity" placeholder="5" min="0" value="1" required>
-            <div class="error-message" id="stockQuantityError">在庫数は必須です</div>
-          </div>
-          
-          <div class="form-group">
-            <label for="stockStatus">在庫ステータス</label>
-            <select id="stockStatus" name="stockStatus">
-              <option value="在庫あり">在庫あり</option>
-              <option value="売り切れ">売り切れ</option>
-              <option value="予約受付中">予約受付中</option>
-            </select>
-          </div>
+        <div class="form-group">
+          <label for="stockStatus">在庫ステータス <span class="required">*</span></label>
+          <select id="stockStatus" name="stockStatus" required>
+            <option value="">在庫ステータスを選択してください</option>
+            <option value="在庫あり">在庫あり</option>
+            <option value="売り切れ">売り切れ</option>
+            <option value="予約受付中">予約受付中</option>
+          </select>
+          <div class="error-message" id="stockStatusError">在庫ステータスは必須です</div>
         </div>
         
         <!-- 利益計算プレビュー -->
@@ -586,10 +577,6 @@ function getProductInputFormHtml() {
           <div class="price-item">
             <span>仕入れ価格:</span>
             <span id="previewPurchasePrice">¥0</span>
-          </div>
-          <div class="price-item">
-            <span>手数料 (<span id="previewFeeRate">0%</span>):</span>
-            <span id="previewFee">¥0</span>
           </div>
           <div class="price-item total">
             <span>予想利益:</span>
@@ -617,6 +604,16 @@ function getProductInputFormHtml() {
     // サーバーサイドから取得した仕入れ元データ
     var supplierData = <?= JSON.stringify(supplierData) ?>;
     
+    // データが文字列の場合は解析する
+    if (typeof supplierData === 'string') {
+      try {
+        supplierData = JSON.parse(supplierData);
+      } catch (e) {
+        console.error('JSON解析エラー:', e);
+        supplierData = [];
+      }
+    }
+    
     // 処理状態管理
     var isProcessing = false;
     var progressSteps = [
@@ -630,30 +627,18 @@ function getProductInputFormHtml() {
     // 仕入れ元選択時の処理
     document.getElementById('supplier').addEventListener('change', function() {
       updateSupplierInfo();
-      updatePricePreview();
+      updatePricePreview(); // 価格プレビューを更新
     });
     
     // 価格入力時の処理
     document.getElementById('purchasePrice').addEventListener('input', updatePricePreview);
     document.getElementById('sellingPrice').addEventListener('input', updatePricePreview);
     
-    // 在庫数入力時の処理
-    document.getElementById('stockQuantity').addEventListener('input', function() {
-      var quantity = parseInt(this.value);
-      var statusSelect = document.getElementById('stockStatus');
-      
-      if (quantity === 0) {
-        statusSelect.value = '売り切れ';
-      } else if (quantity > 0) {
-        statusSelect.value = '在庫あり';
-      }
-    });
     
     // 仕入れ元情報の更新
     function updateSupplierInfo() {
       var supplier = document.getElementById('supplier').value;
       var supplierInfo = document.getElementById('supplierInfo');
-      var feeRateSpan = document.getElementById('feeRate');
       var accessIntervalSpan = document.getElementById('accessInterval');
       
       // サーバーサイドから取得したデータから仕入れ元情報を検索
@@ -666,7 +651,6 @@ function getProductInputFormHtml() {
       }
       
       if (selectedSupplier) {
-        feeRateSpan.textContent = selectedSupplier.feeRatePercent;
         accessIntervalSpan.textContent = selectedSupplier.accessInterval;
         supplierInfo.style.display = 'block';
       } else {
@@ -678,7 +662,6 @@ function getProductInputFormHtml() {
     function updatePricePreview() {
       var purchasePrice = parseFloat(document.getElementById('purchasePrice').value) || 0;
       var sellingPrice = parseFloat(document.getElementById('sellingPrice').value) || 0;
-      var supplier = document.getElementById('supplier').value;
       
       // 利益計算（手数料は考慮しない）
       var profit = sellingPrice - purchasePrice;
@@ -686,9 +669,7 @@ function getProductInputFormHtml() {
       // プレビューを表示
       document.getElementById('previewSellingPrice').textContent = '¥' + sellingPrice.toLocaleString();
       document.getElementById('previewPurchasePrice').textContent = '¥' + purchasePrice.toLocaleString();
-      document.getElementById('previewFeeRate').textContent = '0.0%';
-      document.getElementById('previewFee').textContent = '¥0';
-      document.getElementById('previewProfit').textContent = '¥' + profit.toLocaleString();
+      document.getElementById('previewProfit').textContent = '¥' + Math.round(profit).toLocaleString();
       
       // 利益の色分け
       var profitElement = document.getElementById('previewProfit');
@@ -766,7 +747,6 @@ function getProductInputFormHtml() {
           purchasePrice: parseFloat(document.getElementById('purchasePrice').value),
           sellingPrice: parseFloat(document.getElementById('sellingPrice').value),
           weight: parseInt(document.getElementById('weight').value),
-          stockQuantity: parseInt(document.getElementById('stockQuantity').value),
           stockStatus: document.getElementById('stockStatus').value,
           notes: document.getElementById('notes').value
         };
@@ -857,7 +837,7 @@ function getProductInputFormHtml() {
       });
       
       // 必須項目のチェック（商品IDは自動生成のため除外）
-      var requiredFields = ['productName', 'supplier', 'supplierUrl', 'purchasePrice', 'sellingPrice', 'weight', 'stockQuantity'];
+      var requiredFields = ['productName', 'supplier', 'supplierUrl', 'purchasePrice', 'sellingPrice', 'weight', 'stockStatus'];
       
       requiredFields.forEach(function(fieldName) {
         var field = document.getElementById(fieldName);
