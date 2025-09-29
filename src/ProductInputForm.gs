@@ -669,8 +669,6 @@ function getProductInputFormHtml() {
       // プレビューを表示
       document.getElementById('previewSellingPrice').textContent = '¥' + sellingPrice.toLocaleString();
       document.getElementById('previewPurchasePrice').textContent = '¥' + purchasePrice.toLocaleString();
-      document.getElementById('previewFeeRate').textContent = '0%';
-      document.getElementById('previewFee').textContent = '¥0';
       document.getElementById('previewProfit').textContent = '¥' + Math.round(profit).toLocaleString();
       
       // 利益の色分け
