@@ -188,7 +188,8 @@ function getInventoryDataForSelection() {
         sku: row[2],
         asin: row[3],
         stockStatus: row[9],
-        purchasePrice: row[6]
+        purchasePrice: row[6],
+        sellingPrice: row[7]
       });
     }
   }
@@ -259,23 +260,6 @@ function addSalesData(salesData) {
 }
 
 
-/**
- * 売上データの一覧表示
- */
-function showSalesList() {
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  const salesSheet = spreadsheet.getSheetByName('売上管理');
-  
-  if (!salesSheet) {
-    SpreadsheetApp.getUi().alert('エラー', '売上管理シートが見つかりません。', SpreadsheetApp.getUi().ButtonSet.OK);
-    return;
-  }
-  
-  // 売上管理シートをアクティブにする
-  salesSheet.activate();
-  
-  console.log('売上管理シートを表示しました');
-}
 
 /**
  * 売上データの削除
@@ -311,45 +295,6 @@ function deleteSalesData(orderId) {
   }
 }
 
-/**
- * 売上統計の取得
- */
-function getSalesStatistics() {
-  try {
-    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-    const salesSheet = spreadsheet.getSheetByName('売上管理');
-    
-    if (!salesSheet) {
-      console.error('売上管理シートが見つかりません');
-      return null;
-    }
-    
-    const data = salesSheet.getDataRange().getValues();
-    let totalSales = 0;
-    let totalProfit = 0;
-    let orderCount = 0;
-    
-    // ヘッダー行をスキップして計算
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][0] && !isNaN(data[i][0]) && data[i][0] > 0) { // 注文IDが存在し、数値で正の値の場合
-        totalSales += data[i][7] || 0; // 販売価格（列番号8）
-        totalProfit += data[i][10] || 0; // 純利益（列番号11）
-        orderCount++;
-      }
-    }
-    
-    return {
-      totalSales: totalSales,
-      totalProfit: totalProfit,
-      orderCount: orderCount,
-      averageOrderValue: orderCount > 0 ? totalSales / orderCount : 0
-    };
-    
-  } catch (error) {
-    console.error('売上統計の取得中にエラーが発生しました:', error);
-    return null;
-  }
-}
 
 /**
  * 売上入力フォームのHTMLテンプレート
@@ -423,6 +368,12 @@ function getSalesInputFormHtml() {
       outline: none;
       border-color: #34a853;
       box-shadow: 0 0 0 3px rgba(52, 168, 83, 0.1);
+    }
+    
+    .form-group input[readonly] {
+      background-color: #f8f9fa;
+      color: #6c757d;
+      cursor: not-allowed;
     }
     
     .form-row {
@@ -624,7 +575,7 @@ function getSalesInputFormHtml() {
       <form id="salesForm">
         <div class="form-group">
           <label for="orderId">注文ID *</label>
-          <input type="number" id="orderId" name="orderId" value="<?= nextOrderId ?>" min="1" required>
+          <input type="number" id="orderId" name="orderId" value="<?= nextOrderId ?>" min="1" required readonly>
         </div>
         
         <div class="form-group">
@@ -642,26 +593,18 @@ function getSalesInputFormHtml() {
                       data-sku="<?= inventoryData[i].sku ?>"
                       data-asin="<?= inventoryData[i].asin ?>"
                       data-stock-status="<?= inventoryData[i].stockStatus ?>"
-                      data-purchase-price="<?= inventoryData[i].purchasePrice ?>">
+                      data-purchase-price="<?= inventoryData[i].purchasePrice ?>"
+                      data-selling-price="<?= inventoryData[i].sellingPrice ?>">
                 <?= inventoryData[i].name ?> (SKU: <?= inventoryData[i].sku ?>, 在庫: <?= inventoryData[i].stockStatus ?>)
               </option>
             <? } ?>
           </select>
         </div>
         
-        <div id="productInfo" class="product-info" style="display: none;">
-          <h4>選択された商品情報</h4>
-          <p><strong>商品名:</strong> <span id="selectedProductName"></span></p>
-          <p><strong>SKU:</strong> <span id="selectedSKU"></span></p>
-          <p><strong>ASIN:</strong> <span id="selectedASIN"></span></p>
-          <p><strong>在庫ステータス:</strong> <span id="selectedStockStatus"></span></p>
-          <p><strong>仕入れ価格:</strong> ¥<span id="selectedPurchasePrice"></span></p>
-        </div>
-        
         <div class="form-row">
           <div class="form-group">
             <label for="quantity">数量 *</label>
-            <input type="number" id="quantity" name="quantity" min="1" required onchange="validateQuantity()">
+            <input type="number" id="quantity" name="quantity" min="1" value="1" required onchange="validateQuantity()">
             <div id="quantityError" class="error-message"></div>
           </div>
           
@@ -673,12 +616,13 @@ function getSalesInputFormHtml() {
         
          <div class="form-row">
            <div class="form-group">
-             <label for="shippingCost">送料 (円)</label>
-             <input type="number" id="shippingCost" name="shippingCost" min="0" value="0" onchange="calculateProfit()">
+             <label for="purchasePrice">仕入れ価格 (円) *</label>
+             <input type="number" id="purchasePrice" name="purchasePrice" min="0" required onchange="calculateProfit()">
            </div>
            
            <div class="form-group">
-             <!-- 空のスペース -->
+             <label for="shippingCost">送料 (円)</label>
+             <input type="number" id="shippingCost" name="shippingCost" min="0" value="0" onchange="calculateProfit()">
            </div>
          </div>
          
@@ -760,27 +704,27 @@ function getSalesInputFormHtml() {
        document.getElementById('progressFill').style.width = progress + '%';
      }
      
-     // 商品選択時の処理
-     function updateProductInfo() {
-      const select = document.getElementById('productId');
-      const option = select.options[select.selectedIndex];
-      const productInfo = document.getElementById('productInfo');
-      
-      if (option.value) {
-        document.getElementById('selectedProductName').textContent = option.dataset.name;
-        document.getElementById('selectedSKU').textContent = option.dataset.sku;
-        document.getElementById('selectedASIN').textContent = option.dataset.asin;
-        document.getElementById('selectedStockStatus').textContent = option.dataset.stockStatus;
-        document.getElementById('selectedPurchasePrice').textContent = parseInt(option.dataset.purchasePrice).toLocaleString();
-        
-        productInfo.style.display = 'block';
-        
-        // 利益計算を実行
-        calculateProfit();
-      } else {
-        productInfo.style.display = 'none';
-      }
-    }
+    // 商品選択時の処理
+    function updateProductInfo() {
+     const select = document.getElementById('productId');
+     const option = select.options[select.selectedIndex];
+     
+     if (option.value) {
+       // 仕入れ価格フィールドにデフォルト値を設定
+       document.getElementById('purchasePrice').value = option.dataset.purchasePrice;
+       
+       // 販売価格フィールドにデフォルト値を設定
+       document.getElementById('sellingPrice').value = option.dataset.sellingPrice;
+       
+       // 利益計算を実行
+       calculateProfit();
+     } else {
+       // 仕入れ価格フィールドをクリア
+       document.getElementById('purchasePrice').value = '';
+       // 販売価格フィールドをクリア
+       document.getElementById('sellingPrice').value = '';
+     }
+   }
     
     // 数量の検証（在庫数管理がないため、基本的な検証のみ）
     function validateQuantity() {
@@ -800,7 +744,7 @@ function getSalesInputFormHtml() {
      // 利益計算
      function calculateProfit() {
        const sellingPrice = parseFloat(document.getElementById('sellingPrice').value) || 0;
-       const purchasePrice = parseFloat(document.getElementById('productId').options[document.getElementById('productId').selectedIndex].dataset.purchasePrice) || 0;
+       const purchasePrice = parseFloat(document.getElementById('purchasePrice').value) || 0;
        const netProfit = sellingPrice - purchasePrice;
        
        document.getElementById('netProfit').value = Math.round(netProfit);
@@ -869,7 +813,7 @@ function getSalesInputFormHtml() {
          productName: document.getElementById('productId').options[document.getElementById('productId').selectedIndex].dataset.name,
          quantity: parseInt(document.getElementById('quantity').value),
          sellingPrice: parseInt(document.getElementById('sellingPrice').value),
-         purchasePrice: parseInt(document.getElementById('productId').options[document.getElementById('productId').selectedIndex].dataset.purchasePrice),
+         purchasePrice: parseInt(document.getElementById('purchasePrice').value),
          shippingCost: parseInt(document.getElementById('shippingCost').value) || 0
        };
        
@@ -908,7 +852,6 @@ function getSalesInputFormHtml() {
              
              // フォームをクリア
              document.getElementById('salesForm').reset();
-             document.getElementById('productInfo').style.display = 'none';
              document.getElementById('pricePreview').style.display = 'none';
              
              // 3秒後にフォームを閉じる
