@@ -786,6 +786,10 @@ function getSalesInputFormHtml() {
              <span>仕入れ価格:</span>
              <span id="previewPurchasePrice">¥0</span>
            </div>
+           <div class="price-item">
+             <span>送料:</span>
+             <span id="previewShippingCost">¥0</span>
+           </div>
            <div class="price-item total">
              <span><strong>純利益:</strong></span>
              <span id="previewNetProfit"><strong>¥0</strong></span>
@@ -923,21 +927,23 @@ function getSalesInputFormHtml() {
      function calculateProfit() {
        const sellingPrice = parseFloat(document.getElementById('sellingPrice').value) || 0;
        const purchasePrice = parseFloat(document.getElementById('purchasePrice').value) || 0;
-       const netProfit = sellingPrice - purchasePrice;
+       const shippingCost = parseFloat(document.getElementById('shippingCost').value) || 0;
+       const netProfit = sellingPrice - purchasePrice - shippingCost;
        
        document.getElementById('netProfit').value = Math.round(netProfit);
        
        // プレビュー表示を更新
-       updatePricePreview(sellingPrice, purchasePrice, netProfit);
+       updatePricePreview(sellingPrice, purchasePrice, shippingCost, netProfit);
      }
      
      // 価格プレビューの更新
-     function updatePricePreview(sellingPrice, purchasePrice, netProfit) {
+     function updatePricePreview(sellingPrice, purchasePrice, shippingCost, netProfit) {
        const pricePreview = document.getElementById('pricePreview');
        
        if (sellingPrice > 0) {
          document.getElementById('previewSellingPrice').textContent = '¥' + sellingPrice.toLocaleString();
          document.getElementById('previewPurchasePrice').textContent = '¥' + purchasePrice.toLocaleString();
+         document.getElementById('previewShippingCost').textContent = '¥' + shippingCost.toLocaleString();
          document.getElementById('previewNetProfit').textContent = '¥' + Math.round(netProfit).toLocaleString();
          
          // 利益の色分け

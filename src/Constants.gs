@@ -21,7 +21,8 @@ const COLUMN_INDEXES = {
     WEIGHT: 9,               // I列: 重量
     STOCK_STATUS: 10,        // J列: 在庫ステータス
     PROFIT: 11,              // K列: 利益
-    LAST_UPDATED: 12         // L列: 最終更新日時
+    LAST_UPDATED: 12,        // L列: 最終更新日時
+    NOTES: 13                // M列: 備考・メモ
   },
   
   // 売上管理シート

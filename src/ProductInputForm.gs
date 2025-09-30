@@ -31,6 +31,14 @@ function saveNewProduct(formData) {
       throw new Error('在庫管理シートが見つかりません');
     }
     
+    // 備考列が存在するかチェックし、存在しない場合は追加
+    const headerRange = inventorySheet.getRange(1, 1, 1, inventorySheet.getLastColumn());
+    const headers = headerRange.getValues()[0];
+    if (!headers.includes('備考・メモ')) {
+      console.log('備考列が存在しないため、追加します');
+      addNotesColumnToExistingSheet();
+    }
+    
     // 現在の日時を取得
     const now = new Date();
     const timestamp = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
@@ -52,7 +60,8 @@ function saveNewProduct(formData) {
       formData.weight,              // 重量
       formData.stockStatus,         // 在庫ステータス
       profit,                       // 利益（計算値）
-      timestamp                     // 最終更新日時
+      timestamp,                    // 最終更新日時
+      formData.notes || ''          // 備考・メモ
     ];
     
     // 在庫管理シートに新しい行を追加
@@ -936,4 +945,59 @@ function getProductInputFormHtml() {
 </body>
 </html>
   `;
+}
+
+/**
+ * 備考機能のテスト用関数
+ */
+function testNotesFunctionality() {
+  console.log('備考機能のテストを開始します...');
+  
+  try {
+    // テスト用の商品データを作成
+    const testFormData = {
+      productId: 999,
+      productName: 'テスト商品（備考機能テスト）',
+      sku: 'TEST-001',
+      asin: 'B0TEST001',
+      supplier: 'Amazon',
+      supplierUrl: 'https://amazon.co.jp/test',
+      purchasePrice: 1000,
+      sellingPrice: 1500,
+      weight: 100,
+      stockStatus: '在庫あり',
+      notes: 'これは備考機能のテスト用商品です。備考・メモが正常に保存されることを確認します。'
+    };
+    
+    // 商品を保存
+    const result = saveNewProduct(testFormData);
+    
+    if (result.success) {
+      console.log('✅ 備考機能のテストが成功しました');
+      console.log('保存された商品:', result.productName);
+      
+      // 保存されたデータを確認
+      const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+      const inventorySheet = spreadsheet.getSheetByName('在庫管理');
+      const lastRow = inventorySheet.getLastRow();
+      const notesValue = inventorySheet.getRange(lastRow, 13).getValue(); // M列（備考列）
+      
+      console.log('保存された備考:', notesValue);
+      
+      if (notesValue === testFormData.notes) {
+        console.log('✅ 備考データが正常に保存されました');
+        return true;
+      } else {
+        console.log('❌ 備考データの保存に問題があります');
+        return false;
+      }
+    } else {
+      console.log('❌ 商品の保存に失敗しました:', result.message);
+      return false;
+    }
+    
+  } catch (error) {
+    console.error('❌ 備考機能のテスト中にエラーが発生しました:', error);
+    return false;
+  }
 }

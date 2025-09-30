@@ -32,7 +32,8 @@ function initializeInventorySheet() {
     '重量',
     '在庫ステータス',
     '利益',
-    '最終更新日時'
+    '最終更新日時',
+    '備考・メモ'
   ];
   
   // ヘッダーを設定
@@ -58,6 +59,53 @@ function initializeInventorySheet() {
   setupProfitCalculation(inventorySheet);
   
   console.log('在庫管理シートの初期化が完了しました');
+}
+
+/**
+ * 既存の在庫管理シートに備考列を追加
+ */
+function addNotesColumnToExistingSheet() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const inventorySheet = spreadsheet.getSheetByName('在庫管理');
+  
+  if (!inventorySheet) {
+    console.log('在庫管理シートが見つかりません');
+    return;
+  }
+  
+  try {
+    // 現在のヘッダー行を取得
+    const headerRange = inventorySheet.getRange(1, 1, 1, inventorySheet.getLastColumn());
+    const headers = headerRange.getValues()[0];
+    
+    // 備考列が既に存在するかチェック
+    if (headers.includes('備考・メモ')) {
+      console.log('備考列は既に存在します');
+      return;
+    }
+    
+    // 備考列を追加（M列に挿入）
+    inventorySheet.insertColumnAfter(12); // L列の後に挿入
+    
+    // 新しいヘッダーを設定
+    inventorySheet.getRange(1, 13).setValue('備考・メモ');
+    
+    // ヘッダーの書式設定
+    const notesHeaderRange = inventorySheet.getRange(1, 13);
+    notesHeaderRange.setBackground('#4285f4');
+    notesHeaderRange.setFontColor('#ffffff');
+    notesHeaderRange.setFontWeight('bold');
+    notesHeaderRange.setHorizontalAlignment('center');
+    
+    // 列幅を自動調整
+    inventorySheet.autoResizeColumn(13);
+    
+    console.log('備考列が正常に追加されました');
+    
+  } catch (error) {
+    console.error('備考列の追加中にエラーが発生しました:', error);
+    throw error;
+  }
 }
 
 /**
