@@ -521,7 +521,7 @@ function getProductInputFormHtml() {
           </div>
           
           <div class="form-group">
-            <label for="supplierUrl">仕入れ元URL <span class="required">*</span></label>
+            <label for="supplierUrl">仕入れ元URL <span class="required" id="supplierUrlRequired">*</span></label>
             <input type="url" id="supplierUrl" name="supplierUrl" placeholder="https://..." required>
             <div class="error-message" id="supplierUrlError">有効なURLを入力してください</div>
           </div>
@@ -627,6 +627,7 @@ function getProductInputFormHtml() {
     // 仕入れ元選択時の処理
     document.getElementById('supplier').addEventListener('change', function() {
       updateSupplierInfo();
+      updateSupplierUrlRequirement(); // URL必須属性の制御
       updatePricePreview(); // 価格プレビューを更新
     });
     
@@ -655,6 +656,25 @@ function getProductInputFormHtml() {
         supplierInfo.style.display = 'block';
       } else {
         supplierInfo.style.display = 'none';
+      }
+    }
+    
+    // 仕入れ元URL必須属性の制御
+    function updateSupplierUrlRequirement() {
+      var supplier = document.getElementById('supplier').value;
+      var supplierUrlInput = document.getElementById('supplierUrl');
+      var supplierUrlRequired = document.getElementById('supplierUrlRequired');
+      var supplierUrlError = document.getElementById('supplierUrlError');
+      
+      // Amazonが選択された場合は必須を外す
+      if (supplier === 'Amazon') {
+        supplierUrlInput.removeAttribute('required');
+        supplierUrlRequired.style.display = 'none';
+        supplierUrlError.textContent = '有効なURLを入力してください（任意）';
+      } else {
+        supplierUrlInput.setAttribute('required', 'required');
+        supplierUrlRequired.style.display = 'inline';
+        supplierUrlError.textContent = '有効なURLを入力してください';
       }
     }
     
@@ -837,7 +857,13 @@ function getProductInputFormHtml() {
       });
       
       // 必須項目のチェック（商品IDは自動生成のため除外）
-      var requiredFields = ['productName', 'supplier', 'supplierUrl', 'purchasePrice', 'sellingPrice', 'weight', 'stockStatus'];
+      var requiredFields = ['productName', 'supplier', 'purchasePrice', 'sellingPrice', 'weight', 'stockStatus'];
+      
+      // 仕入れ元がAmazonでない場合のみURLを必須項目に追加
+      var supplier = document.getElementById('supplier').value;
+      if (supplier !== 'Amazon') {
+        requiredFields.push('supplierUrl');
+      }
       
       requiredFields.forEach(function(fieldName) {
         var field = document.getElementById(fieldName);
@@ -849,7 +875,7 @@ function getProductInputFormHtml() {
         }
       });
       
-      // URLの形式チェック
+      // URLの形式チェック（Amazonでない場合のみ、または値が入力されている場合）
       var urlField = document.getElementById('supplierUrl');
       var urlError = document.getElementById('supplierUrlError');
       
@@ -902,6 +928,9 @@ function getProductInputFormHtml() {
     document.addEventListener('DOMContentLoaded', function() {
       // 商品IDはサーバーサイドで自動生成済み
       console.log('商品ID:', document.getElementById('productId').value);
+      
+      // 初期状態でURL必須属性を制御
+      updateSupplierUrlRequirement();
     });
   </script>
 </body>
