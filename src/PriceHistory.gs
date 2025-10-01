@@ -6,6 +6,33 @@
  */
 
 /**
+ * 商品IDから商品名を取得するヘルパー関数
+ * @param {Spreadsheet} spreadsheet - スプレッドシートオブジェクト
+ * @param {number} productId - 商品ID
+ * @returns {string} 商品名（見つからない場合は空文字列）
+ */
+function getProductNameById(spreadsheet, productId) {
+  try {
+    const inventorySheet = spreadsheet.getSheetByName(SHEET_NAMES.INVENTORY);
+    if (!inventorySheet) {
+      return '';
+    }
+    
+    const inventoryData = inventorySheet.getDataRange().getValues();
+    for (let i = 1; i < inventoryData.length; i++) {
+      if (inventoryData[i][0] === productId) {
+        return inventoryData[i][1] || '';
+      }
+    }
+    
+    return '';
+  } catch (error) {
+    console.error('商品名取得エラー:', error);
+    return '';
+  }
+}
+
+/**
  * 価格履歴シートの初期化（1商品1行形式）
  */
 function initializePriceHistorySheet() {
@@ -179,6 +206,42 @@ function setupPriceHistoryConditionalFormatting(sheet) {
  * @param {string} notes - 備考
  */
 function updatePriceHistory(productId, newPurchasePrice, newSellingPrice, notes = '') {
+  // 入力パラメータの検証
+  if (productId === null || productId === undefined) {
+    console.error('商品IDがnullまたはundefinedです');
+    return false;
+  }
+  
+  // 商品IDが有効な数値または文字列であることを確認
+  const validProductId = typeof productId === 'number' ? productId : parseInt(productId);
+  if (!Number.isInteger(validProductId) || validProductId <= 0) {
+    console.error('商品IDが無効です:', productId);
+    return false;
+  }
+  
+  // 仕入れ価格の検証
+  if (!Number.isFinite(newPurchasePrice) || newPurchasePrice < 0) {
+    console.error('仕入れ価格が無効です:', newPurchasePrice);
+    return false;
+  }
+  
+  // 販売価格の検証
+  if (!Number.isFinite(newSellingPrice) || newSellingPrice < 0) {
+    console.error('販売価格が無効です:', newSellingPrice);
+    return false;
+  }
+  
+  // 備考の検証とサニタイズ
+  let sanitizedNotes = '';
+  if (notes !== null && notes !== undefined && notes !== '') {
+    sanitizedNotes = String(notes).trim();
+    // 長さ制限（500文字）
+    if (sanitizedNotes.length > 500) {
+      sanitizedNotes = sanitizedNotes.substring(0, 500);
+      console.warn('備考が長すぎるため、500文字に切り詰めました');
+    }
+  }
+  
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   const priceHistorySheet = spreadsheet.getSheetByName(SHEET_NAMES.PRICE_HISTORY);
   
@@ -187,13 +250,13 @@ function updatePriceHistory(productId, newPurchasePrice, newSellingPrice, notes 
     return false;
   }
   
-  // 商品IDで既存の行を検索
+  // 商品IDで既存の行を検索（検証済みのvalidProductIdを使用）
   const dataRange = priceHistorySheet.getDataRange();
   const values = dataRange.getValues();
   
   let existingRowIndex = -1;
   for (let i = 1; i < values.length; i++) {
-    if (values[i][0] === productId) {
+    if (values[i][0] === validProductId) {
       existingRowIndex = i + 1; // 1ベースの行番号
       break;
     }
@@ -228,21 +291,11 @@ function updatePriceHistory(productId, newPurchasePrice, newSellingPrice, notes 
     const newSellingChangeCount = sellingPriceChange !== 0 ? sellingChangeCount + 1 : sellingChangeCount;
     
     // 商品名を取得（在庫管理シートから）
-    const inventorySheet = spreadsheet.getSheetByName(SHEET_NAMES.INVENTORY);
-    let productName = '';
-    if (inventorySheet) {
-      const inventoryData = inventorySheet.getDataRange().getValues();
-      for (let i = 1; i < inventoryData.length; i++) {
-        if (inventoryData[i][0] === productId) {
-          productName = inventoryData[i][1];
-          break;
-        }
-      }
-    }
+    const productName = getProductNameById(spreadsheet, validProductId);
     
     // データを更新
     const updateData = [
-      productId,
+      validProductId,
       productName,
       newPurchasePrice, // 現在仕入れ価格
       currentPurchasePrice, // 前回仕入れ価格
@@ -255,7 +308,7 @@ function updatePriceHistory(productId, newPurchasePrice, newSellingPrice, notes 
       timeString, // 最終更新日時
       newPurchaseChangeCount, // 仕入れ価格変動回数
       newSellingChangeCount, // 販売価格変動回数
-      notes // 備考
+      sanitizedNotes // サニタイズ済み備考
     ];
     
     priceHistorySheet.getRange(existingRowIndex, 1, 1, 14).setValues([updateData]);
@@ -273,25 +326,15 @@ function updatePriceHistory(productId, newPurchasePrice, newSellingPrice, notes 
     priceHistorySheet.getRange(existingRowIndex, 12, 1, 1).setNumberFormat('0'); // 仕入れ価格変動回数
     priceHistorySheet.getRange(existingRowIndex, 13, 1, 1).setNumberFormat('0'); // 販売価格変動回数
     
-    console.log(`商品ID ${productId} の価格履歴を更新しました`);
+    console.log(`商品ID ${validProductId} の価格履歴を更新しました`);
     return true;
     
   } else {
     // 新規商品の追加
-    const inventorySheet = spreadsheet.getSheetByName(SHEET_NAMES.INVENTORY);
-    let productName = '';
-    if (inventorySheet) {
-      const inventoryData = inventorySheet.getDataRange().getValues();
-      for (let i = 1; i < inventoryData.length; i++) {
-        if (inventoryData[i][0] === productId) {
-          productName = inventoryData[i][1];
-          break;
-        }
-      }
-    }
+    const productName = getProductNameById(spreadsheet, validProductId);
     
     const newData = [
-      productId,
+      validProductId,
       productName,
       newPurchasePrice, // 現在仕入れ価格
       newPurchasePrice, // 前回仕入れ価格（初回は同じ）
@@ -304,7 +347,7 @@ function updatePriceHistory(productId, newPurchasePrice, newSellingPrice, notes 
       timeString, // 最終更新日時
       0, // 仕入れ価格変動回数（初回は0）
       0, // 販売価格変動回数（初回は0）
-      notes || '新規登録' // 備考
+      sanitizedNotes || '新規登録' // サニタイズ済み備考
     ];
     
     priceHistorySheet.appendRow(newData);
@@ -323,7 +366,7 @@ function updatePriceHistory(productId, newPurchasePrice, newSellingPrice, notes 
     priceHistorySheet.getRange(newRowIndex, 12, 1, 1).setNumberFormat('0'); // 仕入れ価格変動回数
     priceHistorySheet.getRange(newRowIndex, 13, 1, 1).setNumberFormat('0'); // 販売価格変動回数
     
-    console.log(`商品ID ${productId} の新規価格履歴を追加しました`);
+    console.log(`商品ID ${validProductId} の新規価格履歴を追加しました`);
     return true;
   }
 }
@@ -346,7 +389,22 @@ function syncPriceHistoryFromInventory() {
   let updateCount = 0;
   let skipCount = 0;
   
-  // ヘッダー行をスキップして処理
+  // 価格履歴データを一度だけ取得してルックアップテーブルを作成
+  const priceHistoryData = priceHistorySheet.getDataRange().getValues();
+  const priceHistoryLookup = new Map();
+  
+  // 価格履歴データのルックアップテーブルを作成（O(m)）
+  for (let j = 1; j < priceHistoryData.length; j++) {
+    const productId = priceHistoryData[j][0];
+    if (productId) {
+      priceHistoryLookup.set(productId, {
+        currentPurchasePrice: priceHistoryData[j][2], // 現在仕入れ価格
+        currentSellingPrice: priceHistoryData[j][6]   // 現在販売価格
+      });
+    }
+  }
+  
+  // ヘッダー行をスキップして処理（O(n)）
   for (let i = 1; i < inventoryData.length; i++) {
     const productId = inventoryData[i][0];
     const productName = inventoryData[i][1];
@@ -354,26 +412,13 @@ function syncPriceHistoryFromInventory() {
     const sellingPrice = inventoryData[i][7]; // 販売価格
     
     if (productId && productName && purchasePrice && sellingPrice) {
-      // 価格履歴シートから現在の価格を取得して変動チェック
-      const priceHistoryData = priceHistorySheet.getDataRange().getValues();
-      let hasExistingRecord = false;
-      let currentPurchasePrice = 0;
-      let currentSellingPrice = 0;
-      
-      // 既存の価格履歴を検索
-      for (let j = 1; j < priceHistoryData.length; j++) {
-        if (priceHistoryData[j][0] === productId) {
-          hasExistingRecord = true;
-          currentPurchasePrice = priceHistoryData[j][2]; // 現在仕入れ価格
-          currentSellingPrice = priceHistoryData[j][6];  // 現在販売価格
-          break;
-        }
-      }
+      // ルックアップテーブルから現在の価格を取得（O(1)）
+      const existingRecord = priceHistoryLookup.get(productId);
       
       // 既存レコードがあり、価格に変動がない場合はスキップ
-      if (hasExistingRecord && 
-          purchasePrice === currentPurchasePrice && 
-          sellingPrice === currentSellingPrice) {
+      if (existingRecord && 
+          purchasePrice === existingRecord.currentPurchasePrice && 
+          sellingPrice === existingRecord.currentSellingPrice) {
         skipCount++;
         continue;
       }
