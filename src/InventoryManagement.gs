@@ -58,6 +58,9 @@ function initializeInventorySheet() {
   // 利益計算式を設定
   setupProfitCalculation(inventorySheet);
   
+  // 価格変更時の自動履歴更新機能を設定
+  setupPriceChangeTrigger(inventorySheet);
+  
   console.log('在庫管理シートの初期化が完了しました');
 }
 
@@ -170,3 +173,84 @@ function setupProfitCalculation(sheet) {
     sheet.getRange(row, 12).setFormula(formula);
   }
 }
+
+/**
+ * 価格変更時の自動履歴更新機能を設定
+ * 注意: この機能は手動でトリガーを設定する必要があります
+ */
+function setupPriceChangeTrigger(sheet) {
+  console.log('価格変更時の自動履歴更新機能の設定をスキップしました');
+  console.log('手動でトリガーを設定する場合は、以下の手順に従ってください：');
+  console.log('1. スクリプトエディタで「トリガー」を選択');
+  console.log('2. 関数: onInventorySheetEdit');
+  console.log('3. イベントソース: スプレッドシートから');
+  console.log('4. イベントタイプ: 編集時');
+  console.log('5. 保存');
+}
+
+/**
+ * 在庫管理シートの編集時のイベントハンドラー
+ * 価格変更を検出して価格履歴を自動更新
+ */
+function onInventorySheetEdit(e) {
+  try {
+    const range = e.range;
+    const sheet = range.getSheet();
+    
+    // 在庫管理シートでない場合は処理しない
+    if (sheet.getName() !== SHEET_NAMES.INVENTORY) {
+      return;
+    }
+    
+    // 仕入れ価格（G列）または販売価格（H列）が変更された場合のみ処理
+    const column = range.getColumn();
+    if (column !== COLUMN_INDEXES.INVENTORY.PURCHASE_PRICE && 
+        column !== COLUMN_INDEXES.INVENTORY.SELLING_PRICE) {
+      return;
+    }
+    
+    // 変更された行を取得
+    const row = range.getRow();
+    if (row < 2) return; // ヘッダー行はスキップ
+    
+    // 商品IDを取得
+    const productId = sheet.getRange(row, COLUMN_INDEXES.INVENTORY.PRODUCT_ID).getValue();
+    if (!productId) return;
+    
+    // 現在の価格を取得
+    const purchasePrice = sheet.getRange(row, COLUMN_INDEXES.INVENTORY.PURCHASE_PRICE).getValue();
+    const sellingPrice = sheet.getRange(row, COLUMN_INDEXES.INVENTORY.SELLING_PRICE).getValue();
+    
+    if (purchasePrice && sellingPrice) {
+      // 価格履歴を更新
+      updatePriceHistory(productId, purchasePrice, sellingPrice, '在庫管理シートから自動更新');
+    }
+    
+  } catch (error) {
+    console.error('価格履歴の自動更新中にエラーが発生しました:', error);
+  }
+}
+
+/**
+ * 手動で価格履歴を更新する関数
+ * @param {number} productId - 商品ID
+ * @param {number} purchasePrice - 仕入れ価格
+ * @param {number} sellingPrice - 販売価格
+ * @param {string} notes - 備考
+ */
+function updateInventoryPriceHistory(productId, purchasePrice, sellingPrice, notes = '') {
+  try {
+    const result = updatePriceHistory(productId, purchasePrice, sellingPrice, notes);
+    if (result) {
+      console.log(`商品ID ${productId} の価格履歴を更新しました`);
+    } else {
+      console.error(`商品ID ${productId} の価格履歴更新に失敗しました`);
+    }
+    return result;
+  } catch (error) {
+    console.error('価格履歴の更新中にエラーが発生しました:', error);
+    return false;
+  }
+}
+
+

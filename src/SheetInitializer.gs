@@ -56,6 +56,11 @@ function setupCustomMenu() {
         .addItem('Joom用CSV出力', 'exportJoomCsv')
     )
     .addSubMenu(
+      ui.createMenu('💰 価格履歴')
+        .addItem('価格履歴同期', 'syncPriceHistoryMenu')
+        .addItem('価格変動通知設定', 'showPriceNotificationSettings')
+    )
+    .addSubMenu(
       ui.createMenu('⚙️ システム設定')
         .addItem('通知設定', 'showNotificationSettings')
     )
@@ -117,6 +122,34 @@ function setupScheduledCheck() {
 function exportJoomCsv() {
   const ui = SpreadsheetApp.getUi();
   ui.alert('Joom用CSV出力', 'Joom用CSV出力機能は今後実装予定です。', ui.ButtonSet.OK);
+}
+
+
+/**
+ * 価格履歴同期メニュー
+ */
+function syncPriceHistoryMenu() {
+  const ui = SpreadsheetApp.getUi();
+  
+  try {
+    const result = syncPriceHistoryFromInventory();
+    if (result) {
+      ui.alert('価格履歴同期完了', '在庫管理シートから価格履歴を正常に同期しました。', ui.ButtonSet.OK);
+    } else {
+      ui.alert('エラー', '価格履歴の同期中にエラーが発生しました。', ui.ButtonSet.OK);
+    }
+  } catch (error) {
+    console.error('価格履歴同期中にエラーが発生しました:', error);
+    ui.alert('エラー', '価格履歴の同期中にエラーが発生しました: ' + error.message, ui.ButtonSet.OK);
+  }
+}
+
+/**
+ * 価格変動通知設定
+ */
+function showPriceNotificationSettings() {
+  const ui = SpreadsheetApp.getUi();
+  ui.alert('価格変動通知設定', '価格変動通知設定機能は今後実装予定です。', ui.ButtonSet.OK);
 }
 
 /**

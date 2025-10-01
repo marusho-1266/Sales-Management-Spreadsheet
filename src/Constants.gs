@@ -39,6 +39,24 @@ const COLUMN_INDEXES = {
     SHIPPING_COST: 10,       // J列: 送料
     NET_PROFIT: 11,          // K列: 純利益
     REGISTRATION_TIME: 12    // L列: 登録日時
+  },
+  
+  // 価格履歴シート（1商品1行形式）
+  PRICE_HISTORY: {
+    PRODUCT_ID: 1,           // A列: 商品ID
+    PRODUCT_NAME: 2,         // B列: 商品名
+    CURRENT_PURCHASE_PRICE: 3, // C列: 現在仕入れ価格
+    PREVIOUS_PURCHASE_PRICE: 4, // D列: 前回仕入れ価格
+    PURCHASE_PRICE_CHANGE: 5, // E列: 仕入れ価格変動
+    PURCHASE_PRICE_CHANGE_RATE: 6, // F列: 仕入れ価格変動率
+    CURRENT_SELLING_PRICE: 7, // G列: 現在販売価格
+    PREVIOUS_SELLING_PRICE: 8, // H列: 前回販売価格
+    SELLING_PRICE_CHANGE: 9, // I列: 販売価格変動
+    SELLING_PRICE_CHANGE_RATE: 10, // J列: 販売価格変動率
+    LAST_UPDATED: 11,        // K列: 最終更新日時
+    PURCHASE_CHANGE_COUNT: 12, // L列: 仕入れ価格変動回数
+    SELLING_CHANGE_COUNT: 13, // M列: 販売価格変動回数
+    NOTES: 14                // N列: 備考
   }
 };
 

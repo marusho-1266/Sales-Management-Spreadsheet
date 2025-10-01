@@ -77,6 +77,15 @@ function saveNewProduct(formData) {
     inventorySheet.getRange(lastRow, 9, 1, 1).setNumberFormat('0');        // 重量
     inventorySheet.getRange(lastRow, 11, 1, 1).setNumberFormat('#,##0');   // 利益
     
+    // 価格履歴を自動で作成
+    try {
+      updatePriceHistory(formData.productId, formData.purchasePrice, formData.sellingPrice, '新商品登録');
+      console.log('価格履歴が正常に作成されました:', formData.productName);
+    } catch (priceHistoryError) {
+      console.warn('価格履歴の作成中にエラーが発生しました:', priceHistoryError);
+      // 価格履歴の作成に失敗しても商品追加は継続
+    }
+    
     console.log('新商品が正常に保存されました:', formData.productName);
     
     return {
