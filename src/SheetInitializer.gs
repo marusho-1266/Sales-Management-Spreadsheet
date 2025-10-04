@@ -16,6 +16,7 @@ function initializeAllSheets() {
     initializeSalesSheet();
     initializeSupplierMasterSheet();
     initializePriceHistorySheet();
+    initializeSettingsSheet();
     
     // カスタムメニューを設定
     setupCustomMenu();
@@ -54,6 +55,13 @@ function setupCustomMenu() {
     .addSubMenu(
       ui.createMenu('📤 データ出力')
         .addItem('Joom用CSV出力', 'exportJoomCsv')
+        .addItem('Joom対応列追加', 'addJoomColumnsToExistingSheet')
+        .addItem('在庫数量更新', 'updateStockQuantityFromStatus')
+    )
+    .addSubMenu(
+      ui.createMenu('⚙️ 設定')
+        .addItem('設定シート初期化', 'initializeSettingsSheet')
+        .addItem('設定値一括更新', 'showSettingsUpdateForm')
     )
     .addSubMenu(
       ui.createMenu('💰 価格履歴')
@@ -158,6 +166,32 @@ function showPriceNotificationSettings() {
 function showNotificationSettings() {
   const ui = SpreadsheetApp.getUi();
   ui.alert('通知設定', '通知設定機能は今後実装予定です。', ui.ButtonSet.OK);
+}
+
+/**
+ * 設定更新フォームの表示
+ */
+function showSettingsUpdateForm() {
+  const ui = SpreadsheetApp.getUi();
+  
+  // 現在の設定値を取得
+  const storeId = getSetting('ストアID') || 'STORE001';
+  const currency = getSetting('デフォルト通貨') || 'JPY';
+  const shippingPrice = getSetting('デフォルト配送価格') || '0';
+  
+  // プロンプトで設定値を入力
+  const newStoreId = ui.prompt('ストアID設定', `現在のストアID: ${storeId}\n新しいストアIDを入力してください:`, ui.ButtonSet.OK_CANCEL);
+  
+  if (newStoreId.getSelectedButton() === ui.Button.OK) {
+    const storeIdValue = newStoreId.getResponseText().trim();
+    if (storeIdValue) {
+      updateSetting('ストアID', storeIdValue);
+      
+      ui.alert('設定更新完了', `ストアIDを「${storeIdValue}」に更新しました。\nCSV出力時にこの設定値が使用されます。`, ui.ButtonSet.OK);
+    } else {
+      ui.alert('エラー', 'ストアIDが入力されていません。', ui.ButtonSet.OK);
+    }
+  }
 }
 
 

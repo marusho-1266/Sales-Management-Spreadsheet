@@ -19,10 +19,17 @@ const COLUMN_INDEXES = {
     PURCHASE_PRICE: 7,       // G列: 仕入れ価格
     SELLING_PRICE: 8,        // H列: 販売価格
     WEIGHT: 9,               // I列: 重量
-    STOCK_STATUS: 10,        // J列: 在庫ステータス
-    PROFIT: 11,              // K列: 利益
-    LAST_UPDATED: 12,        // L列: 最終更新日時
-    NOTES: 13                // M列: 備考・メモ
+    // Joom対応フィールド（I列とO列の間に挿入）
+    DESCRIPTION: 10,         // J列: 商品説明
+    MAIN_IMAGE_URL: 11,      // K列: メイン画像URL
+    CURRENCY: 12,            // L列: 通貨
+    SHIPPING_PRICE: 13,      // M列: 配送価格
+    STOCK_QUANTITY: 14,      // N列: 在庫数量
+    // 既存フィールド（列番号がシフト）
+    STOCK_STATUS: 15,        // O列: 在庫ステータス
+    PROFIT: 16,              // P列: 利益
+    LAST_UPDATED: 17,        // Q列: 最終更新日時
+    NOTES: 18                // R列: 備考・メモ
   },
   
   // 売上管理シート
@@ -67,7 +74,8 @@ const SHEET_NAMES = {
   INVENTORY: '在庫管理',
   SALES: '売上管理',
   SUPPLIER_MASTER: '仕入れ元マスター',
-  PRICE_HISTORY: '価格履歴'
+  PRICE_HISTORY: '価格履歴',
+  SETTINGS: '設定'
 };
 
 /**
