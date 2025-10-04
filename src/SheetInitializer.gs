@@ -176,8 +176,6 @@ function showSettingsUpdateForm() {
   
   // 現在の設定値を取得
   const storeId = getSetting('ストアID') || 'STORE001';
-  const currency = getSetting('デフォルト通貨') || 'JPY';
-  const shippingPrice = getSetting('デフォルト配送価格') || '0';
   
   // プロンプトで設定値を入力
   const newStoreId = ui.prompt('ストアID設定', `現在のストアID: ${storeId}\n新しいストアIDを入力してください:`, ui.ButtonSet.OK_CANCEL);

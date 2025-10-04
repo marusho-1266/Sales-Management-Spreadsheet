@@ -4,6 +4,9 @@
  * 作成日: 2025-09-27
  */
 
+// 設定値キャッシュ（キー→値のマップ）
+let settingsCache = null;
+
 /**
  * 在庫管理シートの初期化
  */
@@ -11,13 +14,26 @@ function initializeInventorySheet() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   
   // 在庫管理シートを作成または取得
-  let inventorySheet = spreadsheet.getSheetByName('在庫管理');
+  let inventorySheet = spreadsheet.getSheetByName(SHEET_NAMES.INVENTORY);
   if (!inventorySheet) {
-    inventorySheet = spreadsheet.insertSheet('在庫管理');
+    inventorySheet = spreadsheet.insertSheet(SHEET_NAMES.INVENTORY);
   }
   
-  // 既存のデータをクリア
-  inventorySheet.clear();
+  // ユーザー確認ダイアログを表示
+  const ui = SpreadsheetApp.getUi();
+  const response = ui.alert(
+    '在庫管理シートの初期化',
+    '在庫管理シートを初期化すると、既存のデータと書式が削除されます。\n続行しますか？',
+    ui.ButtonSet.YES_NO
+  );
+  
+  // ユーザーが「はい」を選択した場合のみクリアを実行
+  if (response === ui.Button.YES) {
+    inventorySheet.clear();
+  } else {
+    console.log('在庫管理シートの初期化がキャンセルされました');
+    return;
+  }
   
   // ヘッダー行を設定
   const headers = [
@@ -108,7 +124,7 @@ function addJoomColumnsToExistingSheet() {
     
     // 列を挿入（I列の後に5列挿入）
     for (let i = 0; i < joomHeaders.length; i++) {
-      inventorySheet.insertColumnAfter(9 + i); // I列の後に順次挿入
+      inventorySheet.insertColumnAfter(9); // I列の後に順次挿入
     }
     
     // 新しいヘッダーを設定
@@ -330,6 +346,26 @@ function updateInventoryPriceHistory(productId, purchasePrice, sellingPrice, not
  * Joom対応列のデフォルト値を設定
  */
 function setupJoomDefaultValues(sheet) {
+  // COLUMN_INDEXES定数の存在チェック
+  if (typeof COLUMN_INDEXES === 'undefined') {
+    console.error('COLUMN_INDEXES定数が定義されていません');
+    return;
+  }
+  
+  if (typeof COLUMN_INDEXES.INVENTORY === 'undefined') {
+    console.error('COLUMN_INDEXES.INVENTORY定数が定義されていません');
+    return;
+  }
+  
+  // 必要な列インデックスの存在チェック
+  const requiredIndexes = ['CURRENCY', 'STOCK_STATUS', 'STOCK_QUANTITY', 'SHIPPING_PRICE'];
+  for (const indexName of requiredIndexes) {
+    if (typeof COLUMN_INDEXES.INVENTORY[indexName] === 'undefined') {
+      console.error(`COLUMN_INDEXES.INVENTORY.${indexName}定数が定義されていません`);
+      return;
+    }
+  }
+  
   const lastRow = sheet.getLastRow();
   
   if (lastRow < 2) return; // データ行がない場合はスキップ
@@ -347,8 +383,8 @@ function setupJoomDefaultValues(sheet) {
     const stockQuantity = stockStatus === '在庫あり' ? 1 : 0;
     sheet.getRange(row, COLUMN_INDEXES.INVENTORY.STOCK_QUANTITY).setValue(stockQuantity);
     
-    // 配送価格のデフォルト値
-    sheet.getRange(row, COLUMN_INDEXES.INVENTORY.SHIPPING_PRICE).setValue(parseInt(defaultShippingPrice));
+    // 配送価格のデフォルト値（基数10を明示的に指定）
+    sheet.getRange(row, COLUMN_INDEXES.INVENTORY.SHIPPING_PRICE).setValue(parseInt(defaultShippingPrice, 10));
   }
   
   console.log('Joom対応列のデフォルト値を設定しました');
@@ -358,8 +394,29 @@ function setupJoomDefaultValues(sheet) {
  * 在庫ステータスから在庫数量を自動更新
  */
 function updateStockQuantityFromStatus() {
+  // COLUMN_INDEXES定数の存在チェック
+  if (typeof COLUMN_INDEXES === 'undefined') {
+    console.error('COLUMN_INDEXES定数が定義されていません');
+    return;
+  }
+  
+  if (typeof COLUMN_INDEXES.INVENTORY === 'undefined') {
+    console.error('COLUMN_INDEXES.INVENTORY定数が定義されていません');
+    return;
+  }
+  
+  if (typeof COLUMN_INDEXES.INVENTORY.STOCK_STATUS === 'undefined') {
+    console.error('COLUMN_INDEXES.INVENTORY.STOCK_STATUS定数が定義されていません');
+    return;
+  }
+  
+  if (typeof COLUMN_INDEXES.INVENTORY.STOCK_QUANTITY === 'undefined') {
+    console.error('COLUMN_INDEXES.INVENTORY.STOCK_QUANTITY定数が定義されていません');
+    return;
+  }
+  
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  const inventorySheet = spreadsheet.getSheetByName('在庫管理');
+  const inventorySheet = spreadsheet.getSheetByName(SHEET_NAMES.INVENTORY);
   
   if (!inventorySheet) {
     console.log('在庫管理シートが見つかりません');
@@ -368,13 +425,23 @@ function updateStockQuantityFromStatus() {
   
   const lastRow = inventorySheet.getLastRow();
   
-  for (let row = 2; row <= lastRow; row++) {
-    const stockStatus = inventorySheet.getRange(row, COLUMN_INDEXES.INVENTORY.STOCK_STATUS).getValue();
-    const stockQuantity = stockStatus === '在庫あり' ? 1 : 0;
-    inventorySheet.getRange(row, COLUMN_INDEXES.INVENTORY.STOCK_QUANTITY).setValue(stockQuantity);
+  try {
+    for (let row = 2; row <= lastRow; row++) {
+      try {
+        const stockStatus = inventorySheet.getRange(row, COLUMN_INDEXES.INVENTORY.STOCK_STATUS).getValue();
+        const stockQuantity = stockStatus === '在庫あり' ? 1 : 0;
+        inventorySheet.getRange(row, COLUMN_INDEXES.INVENTORY.STOCK_QUANTITY).setValue(stockQuantity);
+      } catch (error) {
+        console.error(`行${row}の在庫数量更新中にエラーが発生しました:`, error);
+        // 個別行のエラーは続行
+      }
+    }
+    
+    console.log('在庫数量を在庫ステータスから更新しました');
+  } catch (error) {
+    console.error('在庫数量の一括更新中にエラーが発生しました:', error);
+    throw error; // 重大なエラーの場合は再スロー
   }
-  
-  console.log('在庫数量を在庫ステータスから更新しました');
 }
 
 /**
@@ -389,8 +456,21 @@ function initializeSettingsSheet() {
     settingsSheet = spreadsheet.insertSheet(SHEET_NAMES.SETTINGS);
   }
   
-  // 既存のデータをクリア
-  settingsSheet.clear();
+  // ユーザー確認ダイアログを表示
+  const ui = SpreadsheetApp.getUi();
+  const response = ui.alert(
+    '設定シートの初期化',
+    '設定シートを初期化すると、既存のデータと書式が削除されます。\n続行しますか？',
+    ui.ButtonSet.YES_NO
+  );
+  
+  // ユーザーが「はい」を選択した場合のみクリアを実行
+  if (response === ui.Button.YES) {
+    settingsSheet.clear();
+  } else {
+    console.log('設定シートの初期化がキャンセルされました');
+    return;
+  }
   
   // ヘッダー行を設定
   const headers = [
@@ -468,25 +548,49 @@ function setupSettingsConditionalFormatting(sheet) {
  * 設定値を取得
  */
 function getSetting(settingName) {
+  // キャッシュが存在しない場合は初期化
+  if (settingsCache === null) {
+    loadSettingsCache();
+  }
+  
+  // キャッシュから設定値を取得
+  if (settingsCache && settingsCache.has(settingName)) {
+    return settingsCache.get(settingName);
+  }
+  
+  console.warn(`設定項目「${settingName}」が見つかりません`);
+  return null;
+}
+
+/**
+ * 設定キャッシュをロード
+ */
+function loadSettingsCache() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   const settingsSheet = spreadsheet.getSheetByName(SHEET_NAMES.SETTINGS);
   
   if (!settingsSheet) {
     console.error('設定シートが見つかりません');
-    return null;
+    settingsCache = new Map();
+    return;
   }
   
-  const data = settingsSheet.getDataRange().getValues();
-  
-  // ヘッダー行をスキップして設定値を検索
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === settingName) {
-      return data[i][1]; // 設定値を返す
+  try {
+    const data = settingsSheet.getDataRange().getValues();
+    settingsCache = new Map();
+    
+    // ヘッダー行をスキップして設定値をキャッシュに格納
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] && data[i][1] !== undefined) {
+        settingsCache.set(data[i][0], data[i][1]);
+      }
     }
+    
+    console.log(`設定キャッシュをロードしました（${settingsCache.size}項目）`);
+  } catch (error) {
+    console.error('設定キャッシュのロード中にエラーが発生しました:', error);
+    settingsCache = new Map();
   }
-  
-  console.warn(`設定項目「${settingName}」が見つかりません`);
-  return null;
 }
 
 /**
@@ -514,6 +618,9 @@ function updateSetting(settingName, settingValue) {
       const currentTime = Utilities.formatDate(now, 'JST', 'yyyy-MM-dd HH:mm:ss');
       settingsSheet.getRange(i + 1, 4).setValue(currentTime);
       
+      // キャッシュを無効化
+      invalidateSettingsCache();
+      
       console.log(`設定項目「${settingName}」を「${settingValue}」に更新しました`);
       return true;
     }
@@ -523,5 +630,20 @@ function updateSetting(settingName, settingValue) {
   return false;
 }
 
+/**
+ * 設定キャッシュを無効化
+ */
+function invalidateSettingsCache() {
+  settingsCache = null;
+  console.log('設定キャッシュを無効化しました');
+}
 
+/**
+ * 設定キャッシュを手動で再読み込み
+ */
+function reloadSettingsCache() {
+  invalidateSettingsCache();
+  loadSettingsCache();
+  console.log('設定キャッシュを手動で再読み込みしました');
+}
 
