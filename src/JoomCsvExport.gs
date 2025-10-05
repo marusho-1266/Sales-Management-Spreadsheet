@@ -61,37 +61,34 @@ function exportJoomCsv(options = {}) {
       try {
         const tempSheet = spreadsheet.insertSheet(tempSheetName);
         
-        // CSVデータを行とフィールドに分割
-        const csvRows = csvData.split('\n');
-        const data = csvRows.map(row => {
-          // 簡易的なCSVパース（エスケープされたカンマを考慮）
-          const fields = [];
-          let currentField = '';
-          let inQuotes = false;
+        // 改善されたCSVパーサーでマルチラインクォートフィールドに対応
+        const data = parseCsvWithMultilineSupport(csvData);
+        
+        // フィールド数整合性の検証
+        if (data.length > 0) {
+          const headerFieldCount = data[0].length;
+          const inconsistentRows = [];
           
-          for (let i = 0; i < row.length; i++) {
-            const char = row[i];
-            if (char === '"') {
-              if (inQuotes && row[i + 1] === '"') {
-                currentField += '"';
-                i++; // 次の引用符をスキップ
-              } else {
-                inQuotes = !inQuotes;
-              }
-            } else if (char === ',' && !inQuotes) {
-              fields.push(currentField);
-              currentField = '';
-            } else {
-              currentField += char;
+          for (let i = 1; i < data.length; i++) {
+            if (data[i].length !== headerFieldCount) {
+              inconsistentRows.push({
+                rowIndex: i + 1,
+                expectedFields: headerFieldCount,
+                actualFields: data[i].length
+              });
             }
           }
-          fields.push(currentField);
-          return fields;
-        });
-        
-        // データをシートに書き込み
-        if (data.length > 0 && data[0].length > 0) {
-          tempSheet.getRange(1, 1, data.length, data[0].length).setValues(data);
+          
+          if (inconsistentRows.length > 0) {
+            console.warn('CSVフィールド数不一致が検出されました:', inconsistentRows);
+            console.log('不一致行:', inconsistentRows.map(row => `行${row.rowIndex}: 期待${row.expectedFields}フィールド、実際${row.actualFields}フィールド`).join(', '));
+          }
+          
+          // データをシートに書き込み（整合性が取れている場合のみ）
+          if (data.length > 0 && data[0].length > 0) {
+            tempSheet.getRange(1, 1, data.length, data[0].length).setValues(data);
+            console.log(`CSVデータをシートに書き込みました。行数: ${data.length}, 列数: ${data[0].length}`);
+          }
         }        
         // ファイル名をシート名に設定
         tempSheet.setName(fileName.replace('.csv', ''));
@@ -716,8 +713,144 @@ function testInventoryFiltering() {
   }
 }
 
+/**
+ * マルチラインクォートフィールドに対応したCSVパーサー
+ * @param {string} csvData - パースするCSVデータ
+ * @returns {Array<Array<string>>} パースされた2次元配列
+ */
+function parseCsvWithMultilineSupport(csvData) {
+  const records = [];
+  const lines = csvData.split(/\r?\n/);
+  let currentRecord = '';
+  let quoteCount = 0;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    currentRecord += (currentRecord ? '\n' : '') + line;
+    
+    // クォートの数をカウント（エスケープされたクォートは除外）
+    quoteCount = 0;
+    let inEscapedQuote = false;
+    
+    for (let j = 0; j < currentRecord.length; j++) {
+      const char = currentRecord[j];
+      if (char === '"') {
+        if (inEscapedQuote) {
+          inEscapedQuote = false;
+          // エスケープされたクォートなのでカウントしない
+        } else {
+          quoteCount++;
+        }
+      } else if (char === '"' && currentRecord[j - 1] === '"') {
+        // 連続したクォートはエスケープ
+        inEscapedQuote = true;
+      } else {
+        inEscapedQuote = false;
+      }
+    }
+    
+    // クォートが偶数個（バランスが取れている）場合、レコード完了
+    if (quoteCount % 2 === 0) {
+      records.push(currentRecord);
+      currentRecord = '';
+    }
+  }
+  
+  // 最後のレコードが未完了の場合も追加
+  if (currentRecord.trim()) {
+    records.push(currentRecord);
+  }
+  
+  // 各レコードをフィールドに分割
+  return records.map(record => parseCsvRecord(record));
+}
 
+/**
+ * 単一のCSVレコードをフィールドに分割
+ * @param {string} record - CSVレコード文字列
+ * @returns {Array<string>} フィールドの配列
+ */
+function parseCsvRecord(record) {
+  const fields = [];
+  let currentField = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < record.length; i++) {
+    const char = record[i];
+    
+    if (char === '"') {
+      if (inQuotes && record[i + 1] === '"') {
+        // エスケープされたクォート
+        currentField += '"';
+        i++; // 次のクォートをスキップ
+      } else {
+        // クォートの開始/終了
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      // フィールド区切り
+      fields.push(currentField);
+      currentField = '';
+    } else {
+      // 通常の文字
+      currentField += char;
+    }
+  }
+  
+  // 最後のフィールドを追加
+  fields.push(currentField);
+  
+  return fields;
+}
 
-
+/**
+ * 新しいCSVパーサーのテスト関数
+ */
+function testCsvParser() {
+  console.log('CSVパーサーのテストを開始します...');
+  
+  try {
+    // テストケース1: 通常のCSV
+    const normalCsv = 'name,age,city\n"John Doe",25,"New York"\n"Jane Smith",30,"Los Angeles"';
+    console.log('テストケース1: 通常のCSV');
+    const result1 = parseCsvWithMultilineSupport(normalCsv);
+    console.log('結果:', result1);
+    
+    // テストケース2: マルチラインクォートフィールド
+    const multilineCsv = 'name,description\n"John","This is a\nmultiline description"\n"Jane","Single line"';
+    console.log('テストケース2: マルチラインクォートフィールド');
+    const result2 = parseCsvWithMultilineSupport(multilineCsv);
+    console.log('結果:', result2);
+    
+    // テストケース3: エスケープされたクォート
+    const escapedCsv = 'name,quote\n"John","He said ""Hello"" to me"\n"Jane","Normal text"';
+    console.log('テストケース3: エスケープされたクォート');
+    const result3 = parseCsvWithMultilineSupport(escapedCsv);
+    console.log('結果:', result3);
+    
+    // テストケース4: フィールド数不一致
+    const inconsistentCsv = 'name,age,city\n"John",25\n"Jane",30,"Los Angeles","Extra"';
+    console.log('テストケース4: フィールド数不一致');
+    const result4 = parseCsvWithMultilineSupport(inconsistentCsv);
+    console.log('結果:', result4);
+    
+    // フィールド数検証テスト
+    if (result4.length > 0) {
+      const headerFieldCount = result4[0].length;
+      console.log(`ヘッダーフィールド数: ${headerFieldCount}`);
+      
+      for (let i = 1; i < result4.length; i++) {
+        if (result4[i].length !== headerFieldCount) {
+          console.log(`行${i + 1}: 期待${headerFieldCount}フィールド、実際${result4[i].length}フィールド`);
+        }
+      }
+    }
+    
+    console.log('CSVパーサーのテストが完了しました。');
+    
+  } catch (error) {
+    console.error('テスト中にエラーが発生しました:', error);
+  }
+}
 
 
