@@ -64,7 +64,9 @@ function setupCustomMenu() {
     .addSubMenu(
       ui.createMenu('💰 価格履歴')
         .addItem('価格履歴同期', 'syncPriceHistoryMenu')
-        .addItem('価格変動通知設定', 'showPriceNotificationSettings')
+        .addSeparator()
+        .addItem('📧 メールアドレス設定', 'showEmailAddressSettings')
+        .addItem('🔔 通知有効化設定', 'showNotificationEnableSettings')
     )
     .addSubMenu(
       ui.createMenu('⚙️ システム設定')
@@ -143,42 +145,6 @@ function syncPriceHistoryMenu() {
   }
 }
 
-/**
- * 価格変動通知設定メニュー
- */
-function showPriceNotificationSettings() {
-  const ui = SpreadsheetApp.getUi();
-  
-  try {
-    // 現在の設定値を取得
-    const currentEmail = getSetting('価格変動通知メールアドレス') || '';
-    const currentEnabled = getSetting('価格変動通知有効化') || 'true';
-    
-    // メニュー選択
-    const menuResponse = ui.alert(
-      '価格変動通知設定',
-      `現在の設定:\nメールアドレス: ${currentEmail || '未設定'}\n通知状態: ${currentEnabled === 'true' ? '有効' : '無効'}\n\n設定を選択してください:\n\n「はい」: メールアドレス設定\n「いいえ」: 通知の有効/無効設定\n「キャンセル」: 設定を変更せずに終了`,
-      ui.ButtonSet.YES_NO_CANCEL
-    );
-    
-    if (menuResponse === ui.Button.YES) {
-      // メールアドレス設定
-      showEmailAddressSettings();
-    } else if (menuResponse === ui.Button.NO) {
-      // 通知有効化設定
-      showNotificationEnableSettings();
-    }
-    // CANCELの場合は何もしない
-    
-  } catch (error) {
-    console.error('価格変動通知設定メニューでエラーが発生しました:', error);
-    ui.alert(
-      'エラー',
-      '設定メニューの表示中にエラーが発生しました: ' + error.message,
-      ui.ButtonSet.OK
-    );
-  }
-}
 
 /**
  * メールアドレス設定
