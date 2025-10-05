@@ -29,7 +29,10 @@ const COLUMN_INDEXES = {
     STOCK_STATUS: 15,        // O列: 在庫ステータス
     PROFIT: 16,              // P列: 利益
     LAST_UPDATED: 17,        // Q列: 最終更新日時
-    NOTES: 18                // R列: 備考・メモ
+    NOTES: 18,               // R列: 備考・メモ
+    // Joom連携管理列
+    JOOM_STATUS: 19,         // S列: Joom連携ステータス
+    JOOM_LAST_EXPORT: 20     // T列: 最終出力日時
   },
   
   // 売上管理シート
@@ -110,17 +113,94 @@ const FORM_CONSTANTS = {
 };
 
 /**
+ * Joom連携ステータス定数
+ */
+const JOOM_STATUS = {
+  UNLINKED: '未連携',
+  LINKED: '連携済み'
+};
+
+/**
+ * Joom CSVフィールドマッピング定数
+ */
+const JOOM_CSV_FIELDS = {
+  // 必須フィールド
+  REQUIRED: {
+    PRODUCT_SKU: 'Product SKU',
+    NAME: 'Name',
+    DESCRIPTION: 'Description',
+    PRODUCT_MAIN_IMAGE_URL: 'Product Main Image URL',
+    STORE_ID: 'Store ID',
+    SHIPPING_WEIGHT: 'Shipping Weight (Kg)',
+    PRICE: 'Price (without VAT)',
+    CURRENCY: 'Currency',
+    INVENTORY: 'Inventory (default warehouse)',
+    SHIPPING_PRICE: 'Shipping Price (without VAT) (default warehouse)'
+  },
+  // 推奨フィールド
+  RECOMMENDED: {
+    BRAND: 'Brand',
+    SEARCH_TAGS: 'Search Tags',
+    DANGEROUS_KIND: 'Dangerous Kind',
+    SUGGESTED_CATEGORY_ID: 'Suggested Category ID',
+    LANDING_PAGE_URL: 'Landing Page URL',
+    EXTRA_IMAGE_URLS: 'Extra Image URLs (max 20)',
+    MANUFACTURE_GTIN: 'Manufacture GTIN',
+    COLOR: 'Color',
+    SIZE: 'Size',
+    MSRP: 'MSRP',
+    VARIANT_SKU: 'Variant SKU',
+    VARIANT_MAIN_IMAGE_URL: 'Variant Main Image URL',
+    SHIPPING_LENGTH: 'Shipping Length (cm)',
+    SHIPPING_WIDTH: 'Shipping Width (cm)',
+    SHIPPING_HEIGHT: 'Shipping Height (cm)',
+    HS_CODE: 'HS Code',
+    DECLARED_VALUE: 'Declared Value'
+  }
+};
+
+/**
+ * Joom CSV出力設定定数
+ */
+const JOOM_CSV_CONFIG = {
+  // 出力対象
+  TARGET_PRODUCTS: {
+    ALL: 'all',
+    UNLINKED: 'unlinked',
+    SELECTED: 'selected'
+  },
+  // デフォルト値
+  DEFAULTS: {
+    CURRENCY: 'JPY',
+    DANGEROUS_KIND: 'notdangerous',
+    SHIPPING_PRICE: 0,
+    WEIGHT_UNIT_CONVERSION: 1000 // g to kg
+  },
+  // バリデーション
+  VALIDATION: {
+    MIN_IMAGE_SIZE: 500,
+    MAX_IMAGES: 20,
+    MAX_INVENTORY: 100000,
+    REQUIRED_FIELDS: ['Product SKU', 'Name', 'Description', 'Product Main Image URL', 'Store ID', 'Shipping Weight (Kg)', 'Price (without VAT)', 'Currency', 'Inventory (default warehouse)', 'Shipping Price (without VAT) (default warehouse)']
+  }
+};
+
+/**
  * メッセージ定数
  */
 const MESSAGES = {
   SUCCESS: {
     PRODUCT_SAVED: '商品が正常に保存されました',
     SALES_SAVED: '注文データが正常に保存されました',
-    SHEET_INITIALIZED: 'シートの初期化が完了しました'
+    SHEET_INITIALIZED: 'シートの初期化が完了しました',
+    CSV_EXPORTED: 'Joom用CSVの出力が完了しました',
+    STATUS_UPDATED: '連携ステータスが更新されました'
   },
   ERROR: {
     SHEET_NOT_FOUND: 'シートが見つかりません',
     SAVE_FAILED: 'データの保存中にエラーが発生しました',
-    VALIDATION_FAILED: '入力データの検証に失敗しました'
+    VALIDATION_FAILED: '入力データの検証に失敗しました',
+    CSV_EXPORT_FAILED: 'CSV出力中にエラーが発生しました',
+    INVALID_DATA: '無効なデータが検出されました'
   }
 };

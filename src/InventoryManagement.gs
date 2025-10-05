@@ -56,7 +56,10 @@ function initializeInventorySheet() {
     '在庫ステータス',
     '利益',
     '最終更新日時',
-    '備考・メモ'
+    '備考・メモ',
+    // Joom連携管理列
+    'Joom連携ステータス',
+    '最終出力日時'
   ];
   
   // ヘッダーを設定
@@ -90,10 +93,11 @@ function initializeInventorySheet() {
   console.log('在庫管理シートの初期化が完了しました');
 }
 
+
 /**
- * 既存の在庫管理シートにJoom対応列を追加
+ * 既存の在庫管理シートにJoom連携管理列を追加
  */
-function addJoomColumnsToExistingSheet() {
+function addJoomStatusColumnsToExistingSheet() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   const inventorySheet = spreadsheet.getSheetByName('在庫管理');
   
@@ -107,46 +111,42 @@ function addJoomColumnsToExistingSheet() {
     const headerRange = inventorySheet.getRange(1, 1, 1, inventorySheet.getLastColumn());
     const headers = headerRange.getValues()[0];
     
-    // Joom対応列が既に存在するかチェック
-    if (headers.includes('商品説明')) {
-      console.log('Joom対応列は既に存在します');
+    // Joom連携ステータス列が既に存在するかチェック
+    if (headers.includes('Joom連携ステータス')) {
+      console.log('Joom連携管理列は既に存在します');
       return;
     }
     
-    // Joom対応列を追加（J列からN列まで）
-    const joomHeaders = [
-      '商品説明',      // J列
-      'メイン画像URL', // K列
-      '通貨',          // L列
-      '配送価格',      // M列
-      '在庫数量'       // N列
-    ];
-    
-    // 列を挿入（I列の後に5列挿入）
-    for (let i = 0; i < joomHeaders.length; i++) {
-      inventorySheet.insertColumnAfter(9); // I列の後に順次挿入
-    }
+    // Joom連携管理列を追加（最後の列の後に2列挿入）
+    const lastColumn = inventorySheet.getLastColumn();
+    inventorySheet.insertColumnAfter(lastColumn); // Joom連携ステータス列
+    inventorySheet.insertColumnAfter(lastColumn + 1); // 最終出力日時列
     
     // 新しいヘッダーを設定
-    const newHeaderRange = inventorySheet.getRange(1, 10, 1, joomHeaders.length);
-    newHeaderRange.setValues([joomHeaders]);
+    inventorySheet.getRange(1, lastColumn + 1).setValue('Joom連携ステータス');
+    inventorySheet.getRange(1, lastColumn + 2).setValue('最終出力日時');
     
     // ヘッダーの書式設定
-    newHeaderRange.setBackground('#4285f4');
-    newHeaderRange.setFontColor('#ffffff');
-    newHeaderRange.setFontWeight('bold');
-    newHeaderRange.setHorizontalAlignment('center');
+    const joomStatusHeaderRange = inventorySheet.getRange(1, lastColumn + 1, 1, 2);
+    joomStatusHeaderRange.setBackground('#4285f4');
+    joomStatusHeaderRange.setFontColor('#ffffff');
+    joomStatusHeaderRange.setFontWeight('bold');
+    joomStatusHeaderRange.setHorizontalAlignment('center');
     
     // 列幅を自動調整
-    inventorySheet.autoResizeColumns(10, joomHeaders.length);
+    inventorySheet.autoResizeColumns(lastColumn + 1, 2);
     
-    // デフォルト値を設定
-    setupJoomDefaultValues(inventorySheet);
+    // 既存データのJoom連携ステータスを「未連携」に設定
+    const lastRow = inventorySheet.getLastRow();
+    if (lastRow > 1) {
+      const unlinkedRange = inventorySheet.getRange(2, lastColumn + 1, lastRow - 1, 1);
+      unlinkedRange.setValue(JOOM_STATUS.UNLINKED);
+    }
     
-    console.log('Joom対応列が正常に追加されました');
+    console.log('Joom連携管理列が正常に追加されました');
     
   } catch (error) {
-    console.error('Joom対応列の追加中にエラーが発生しました:', error);
+    console.error('Joom連携管理列の追加中にエラーが発生しました:', error);
     throw error;
   }
 }
@@ -203,7 +203,7 @@ function addNotesColumnToExistingSheet() {
  */
 function addSampleData(sheet) {
   const sampleData = [
-    [1, 'iPhone 15 Pro 128GB', 'IPH15P-128', 'B0CHX1W1XY', 'Amazon', 'https://amazon.co.jp/dp/B0CHX1W1XY', 120000, 150000, 187, '最新のiPhone 15 Pro 128GBモデル。A17 Proチップ搭載で高性能。', 'https://example.com/images/iphone15pro.jpg', 'JPY', 0, 1, '在庫あり', '', '2025-09-27 00:00:00', ''],
+    [1, 'iPhone 15 Pro 128GB', 'IPH15P-128', 'B0CHX1W1XY', 'Amazon', 'https://amazon.co.jp/dp/B0CHX1W1XY', 120000, 150000, 187, '最新のiPhone 15 Pro 128GBモデル。A17 Proチップ搭載で高性能。', 'https://via.placeholder.com/500x500.jpg', 'JPY', 0, 1, '在庫あり', '', '2025-09-27 00:00:00', ''],
     [2, 'MacBook Air M2 13インチ', 'MBA-M2-13', 'B0B3C2Q5XK', '楽天', 'https://item.rakuten.co.jp/example/macbook-air-m2', 140000, 180000, 1240, 'MacBook Air M2 13インチ。M2チップで高速処理。軽量設計。', 'https://example.com/images/macbook-air-m2.jpg', 'JPY', 0, 1, '在庫あり', '', '2025-09-27 00:00:00', ''],
     [3, 'AirPods Pro 第2世代', 'APP-2ND', 'B0BDJDRJ9T', 'Yahooショッピング', 'https://shopping.yahoo.co.jp/products/airpods-pro-2nd', 25000, 35000, 56, 'AirPods Pro 第2世代。ノイズキャンセリング機能搭載。', 'https://example.com/images/airpods-pro-2nd.jpg', 'JPY', 0, 0, '売り切れ', '', '2025-09-27 00:00:00', ''],
     [4, 'iPad Air 第5世代', 'IPAD-AIR-5', 'B09V4HCN9V', 'メルカリ', 'https://mercari.com/items/m123456789', 60000, 80000, 461, 'iPad Air 第5世代。M1チップ搭載で高性能タブレット。', 'https://example.com/images/ipad-air-5.jpg', 'JPY', 0, 1, '在庫あり', '', '2025-09-27 00:00:00', ''],

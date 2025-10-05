@@ -54,9 +54,7 @@ function setupCustomMenu() {
     )
     .addSubMenu(
       ui.createMenu('📤 データ出力')
-        .addItem('Joom用CSV出力', 'exportJoomCsv')
-        .addItem('Joom対応列追加', 'addJoomColumnsToExistingSheet')
-        .addItem('在庫数量更新', 'updateStockQuantityFromStatus')
+        .addItem('Joom用CSV出力', 'exportUnlinkedProductsCsv')
     )
     .addSubMenu(
       ui.createMenu('⚙️ 設定')
@@ -124,13 +122,6 @@ function setupScheduledCheck() {
   ui.alert('定期チェック設定', '定期チェック設定機能は今後実装予定です。', ui.ButtonSet.OK);
 }
 
-/**
- * Joom用CSV出力の実行
- */
-function exportJoomCsv() {
-  const ui = SpreadsheetApp.getUi();
-  ui.alert('Joom用CSV出力', 'Joom用CSV出力機能は今後実装予定です。', ui.ButtonSet.OK);
-}
 
 
 /**
