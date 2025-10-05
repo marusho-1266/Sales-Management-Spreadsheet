@@ -714,46 +714,56 @@ function testInventoryFiltering() {
 }
 
 /**
- * マルチラインクォートフィールドに対応したCSVパーサー
+ * マルチラインクォートフィールドに対応したCSVパーサー（改良版）
  * @param {string} csvData - パースするCSVデータ
  * @returns {Array<Array<string>>} パースされた2次元配列
  */
 function parseCsvWithMultilineSupport(csvData) {
+  // まず Utilities.parseCsv() を試行
+  try {
+    const result = Utilities.parseCsv(csvData);
+    console.log('Utilities.parseCsv()を使用してCSVをパースしました');
+    return result;
+  } catch (error) {
+    console.warn('Utilities.parseCsv()でパースに失敗しました。カスタムパーサーを使用します:', error.message);
+  }
+  
+  // カスタムパーサーでフォールバック
+  return parseCsvWithStateMachine(csvData);
+}
+
+/**
+ * 状態機械を使用した堅牢なCSVパーサー
+ * @param {string} csvData - パースするCSVデータ
+ * @returns {Array<Array<string>>} パースされた2次元配列
+ */
+function parseCsvWithStateMachine(csvData) {
   const records = [];
   const lines = csvData.split(/\r?\n/);
   let currentRecord = '';
-  let quoteCount = 0;
+  let inQuotes = false;
+  let i = 0;
   
-  for (let i = 0; i < lines.length; i++) {
+  while (i < lines.length) {
     const line = lines[i];
+    
+    // 現在の行を追加
     currentRecord += (currentRecord ? '\n' : '') + line;
     
-    // クォートの数をカウント（エスケープされたクォートは除外）
-    quoteCount = 0;
-    let inEscapedQuote = false;
+    // 状態を確認
+    const newState = determineQuoteState(currentRecord);
     
-    for (let j = 0; j < currentRecord.length; j++) {
-      const char = currentRecord[j];
-      if (char === '"') {
-        if (inEscapedQuote) {
-          inEscapedQuote = false;
-          // エスケープされたクォートなのでカウントしない
-        } else {
-          quoteCount++;
-        }
-      } else if (char === '"' && currentRecord[j - 1] === '"') {
-        // 連続したクォートはエスケープ
-        inEscapedQuote = true;
-      } else {
-        inEscapedQuote = false;
-      }
+    if (newState.inQuotes !== inQuotes) {
+      inQuotes = newState.inQuotes;
     }
     
-    // クォートが偶数個（バランスが取れている）場合、レコード完了
-    if (quoteCount % 2 === 0) {
+    // クォートが閉じられている場合、レコード完了
+    if (!inQuotes && newState.isRecordComplete) {
       records.push(currentRecord);
       currentRecord = '';
     }
+    
+    i++;
   }
   
   // 最後のレコードが未完了の場合も追加
@@ -763,6 +773,37 @@ function parseCsvWithMultilineSupport(csvData) {
   
   // 各レコードをフィールドに分割
   return records.map(record => parseCsvRecord(record));
+}
+
+/**
+ * 文字列のクォート状態を判定
+ * @param {string} text - 判定する文字列
+ * @returns {Object} 状態情報
+ */
+function determineQuoteState(text) {
+  let inQuotes = false;
+  let i = 0;
+  
+  while (i < text.length) {
+    const char = text[i];
+    
+    if (char === '"') {
+      // 次の文字もクォートの場合、エスケープされたクォート
+      if (i + 1 < text.length && text[i + 1] === '"') {
+        i += 2; // エスケープされたクォートをスキップ
+        continue;
+      }
+      // 通常のクォート
+      inQuotes = !inQuotes;
+    }
+    
+    i++;
+  }
+  
+  return {
+    inQuotes: inQuotes,
+    isRecordComplete: !inQuotes
+  };
 }
 
 /**
@@ -804,10 +845,48 @@ function parseCsvRecord(record) {
 }
 
 /**
- * 新しいCSVパーサーのテスト関数
+ * Utilities.parseCsv()のテスト関数
+ */
+function testUtilitiesParseCsv() {
+  console.log('Utilities.parseCsv()のテストを開始します...');
+  
+  try {
+    // テストケース1: 通常のCSV
+    const normalCsv = 'name,age,city\n"John Doe",25,"New York"\n"Jane Smith",30,"Los Angeles"';
+    console.log('テストケース1: 通常のCSV');
+    const result1 = Utilities.parseCsv(normalCsv);
+    console.log('Utilities.parseCsv結果:', result1);
+    
+    // テストケース2: マルチラインクォートフィールド
+    const multilineCsv = 'name,description\n"John","This is a\nmultiline description"\n"Jane","Single line"';
+    console.log('テストケース2: マルチラインクォートフィールド');
+    const result2 = Utilities.parseCsv(multilineCsv);
+    console.log('Utilities.parseCsv結果:', result2);
+    
+    // テストケース3: エスケープされたクォート
+    const escapedCsv = 'name,quote\n"John","He said ""Hello"" to me"\n"Jane","Normal text"';
+    console.log('テストケース3: エスケープされたクォート');
+    const result3 = Utilities.parseCsv(escapedCsv);
+    console.log('Utilities.parseCsv結果:', result3);
+    
+    // テストケース4: 複雑なマルチラインケース
+    const complexCsv = 'id,name,description\n1,"Product A","This is a\nmultiline\ndescription with ""quotes"" inside"\n2,"Product B","Simple description"';
+    console.log('テストケース4: 複雑なマルチラインケース');
+    const result4 = Utilities.parseCsv(complexCsv);
+    console.log('Utilities.parseCsv結果:', result4);
+    
+    console.log('Utilities.parseCsv()のテストが完了しました。');
+    
+  } catch (error) {
+    console.error('Utilities.parseCsv()テスト中にエラーが発生しました:', error);
+  }
+}
+
+/**
+ * 改良されたCSVパーサーのテスト関数
  */
 function testCsvParser() {
-  console.log('CSVパーサーのテストを開始します...');
+  console.log('改良されたCSVパーサーのテストを開始します...');
   
   try {
     // テストケース1: 通常のCSV
@@ -828,29 +907,89 @@ function testCsvParser() {
     const result3 = parseCsvWithMultilineSupport(escapedCsv);
     console.log('結果:', result3);
     
-    // テストケース4: フィールド数不一致
-    const inconsistentCsv = 'name,age,city\n"John",25\n"Jane",30,"Los Angeles","Extra"';
-    console.log('テストケース4: フィールド数不一致');
-    const result4 = parseCsvWithMultilineSupport(inconsistentCsv);
+    // テストケース4: 複雑なエスケープケース
+    const complexEscapedCsv = 'id,description\n1,"This has ""multiple"" escaped quotes"\n2,"Simple description"';
+    console.log('テストケース4: 複雑なエスケープケース');
+    const result4 = parseCsvWithMultilineSupport(complexEscapedCsv);
     console.log('結果:', result4);
     
+    // テストケース5: フィールド数不一致
+    const inconsistentCsv = 'name,age,city\n"John",25\n"Jane",30,"Los Angeles","Extra"';
+    console.log('テストケース5: フィールド数不一致');
+    const result5 = parseCsvWithMultilineSupport(inconsistentCsv);
+    console.log('結果:', result5);
+    
     // フィールド数検証テスト
-    if (result4.length > 0) {
-      const headerFieldCount = result4[0].length;
+    if (result5.length > 0) {
+      const headerFieldCount = result5[0].length;
       console.log(`ヘッダーフィールド数: ${headerFieldCount}`);
       
-      for (let i = 1; i < result4.length; i++) {
-        if (result4[i].length !== headerFieldCount) {
-          console.log(`行${i + 1}: 期待${headerFieldCount}フィールド、実際${result4[i].length}フィールド`);
+      for (let i = 1; i < result5.length; i++) {
+        if (result5[i].length !== headerFieldCount) {
+          console.log(`行${i + 1}: 期待${headerFieldCount}フィールド、実際${result5[i].length}フィールド`);
         }
       }
     }
     
-    console.log('CSVパーサーのテストが完了しました。');
+    console.log('改良されたCSVパーサーのテストが完了しました。');
     
   } catch (error) {
     console.error('テスト中にエラーが発生しました:', error);
   }
+}
+
+/**
+ * 包括的なCSVパーサーテスト関数
+ */
+function testAllCsvParsers() {
+  console.log('=== 包括的なCSVパーサーテストを開始します ===');
+  
+  const testCases = [
+    {
+      name: '通常のCSV',
+      data: 'name,age,city\n"John Doe",25,"New York"\n"Jane Smith",30,"Los Angeles"'
+    },
+    {
+      name: 'マルチラインクォートフィールド',
+      data: 'name,description\n"John","This is a\nmultiline description"\n"Jane","Single line"'
+    },
+    {
+      name: 'エスケープされたクォート',
+      data: 'name,quote\n"John","He said ""Hello"" to me"\n"Jane","Normal text"'
+    },
+    {
+      name: '複雑なエスケープケース',
+      data: 'id,description\n1,"This has ""multiple"" escaped quotes"\n2,"Simple description"'
+    },
+    {
+      name: '空のフィールド',
+      data: 'name,age,city\n"John",,"New York"\n"Jane",30,""'
+    }
+  ];
+  
+  testCases.forEach((testCase, index) => {
+    console.log(`\n--- テストケース${index + 1}: ${testCase.name} ---`);
+    
+    try {
+      // Utilities.parseCsv()のテスト
+      console.log('Utilities.parseCsv()結果:');
+      const utilsResult = Utilities.parseCsv(testCase.data);
+      console.log(utilsResult);
+    } catch (error) {
+      console.log('Utilities.parseCsv()エラー:', error.message);
+    }
+    
+    try {
+      // カスタムパーサーのテスト
+      console.log('カスタムパーサー結果:');
+      const customResult = parseCsvWithMultilineSupport(testCase.data);
+      console.log(customResult);
+    } catch (error) {
+      console.log('カスタムパーサーエラー:', error.message);
+    }
+  });
+  
+  console.log('\n=== 包括的なCSVパーサーテストが完了しました ===');
 }
 
 

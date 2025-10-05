@@ -78,13 +78,13 @@ function saveNewProduct(formData) {
     const lastRow = inventorySheet.getLastRow();
     
     // 数値列の書式設定
-    inventorySheet.getRange(lastRow, 1, 1, 1).setNumberFormat('0');        // 商品ID
-    inventorySheet.getRange(lastRow, 7, 1, 1).setNumberFormat('#,##0');    // 仕入れ価格
-    inventorySheet.getRange(lastRow, 8, 1, 1).setNumberFormat('#,##0');    // 販売価格
-    inventorySheet.getRange(lastRow, 9, 1, 1).setNumberFormat('0');        // 重量
-    inventorySheet.getRange(lastRow, 13, 1, 1).setNumberFormat('#,##0');   // 配送価格
-    inventorySheet.getRange(lastRow, 14, 1, 1).setNumberFormat('0');       // 在庫数量
-    inventorySheet.getRange(lastRow, 16, 1, 1).setNumberFormat('#,##0');   // 利益
+    inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.PRODUCT_ID, 1, 1).setNumberFormat('0');        // 商品ID
+    inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.PURCHASE_PRICE, 1, 1).setNumberFormat('#,##0');    // 仕入れ価格
+    inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.SELLING_PRICE, 1, 1).setNumberFormat('#,##0');    // 販売価格
+    inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.WEIGHT, 1, 1).setNumberFormat('0');        // 重量
+    inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.SHIPPING_PRICE, 1, 1).setNumberFormat('#,##0');   // 配送価格
+    inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.STOCK_QUANTITY, 1, 1).setNumberFormat('0');       // 在庫数量
+    inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.PROFIT, 1, 1).setNumberFormat('#,##0');   // 利益
     
     // 価格履歴を自動で作成
     try {
@@ -182,8 +182,8 @@ function getNextProductId() {
       return 1;
     }
     
-    // 商品ID列（A列）からデータを取得
-    const productIds = inventorySheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    // 商品ID列からデータを取得
+    const productIds = inventorySheet.getRange(2, COLUMN_INDEXES.INVENTORY.PRODUCT_ID, lastRow - 1, 1).getValues();
     
     let maxNumber = 0;
     for (let i = 0; i < productIds.length; i++) {
@@ -1060,7 +1060,7 @@ function testNotesFunctionality() {
       const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
       const inventorySheet = spreadsheet.getSheetByName('在庫管理');
       const lastRow = inventorySheet.getLastRow();
-      const notesValue = inventorySheet.getRange(lastRow, 13).getValue(); // M列（備考列）
+      const notesValue = inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.NOTES).getValue(); // 備考列
       
       console.log('保存された備考:', notesValue);
       

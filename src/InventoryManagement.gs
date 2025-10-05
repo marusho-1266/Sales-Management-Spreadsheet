@@ -99,7 +99,7 @@ function initializeInventorySheet() {
  */
 function addJoomStatusColumnsToExistingSheet() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  const inventorySheet = spreadsheet.getSheetByName('在庫管理');
+  const inventorySheet = spreadsheet.getSheetByName(SHEET_NAMES.INVENTORY);
   
   if (!inventorySheet) {
     console.log('在庫管理シートが見つかりません');
@@ -156,7 +156,7 @@ function addJoomStatusColumnsToExistingSheet() {
  */
 function addNotesColumnToExistingSheet() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  const inventorySheet = spreadsheet.getSheetByName('在庫管理');
+  const inventorySheet = spreadsheet.getSheetByName(SHEET_NAMES.INVENTORY);
   
   if (!inventorySheet) {
     console.log('在庫管理シートが見つかりません');
