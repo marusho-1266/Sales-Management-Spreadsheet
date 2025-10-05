@@ -181,7 +181,7 @@ const JOOM_CSV_CONFIG = {
     MIN_IMAGE_SIZE: 500,
     MAX_IMAGES: 20,
     MAX_INVENTORY: 100000,
-    REQUIRED_FIELDS: ['Product SKU', 'Name', 'Description', 'Product Main Image URL', 'Store ID', 'Shipping Weight (Kg)', 'Price (without VAT)', 'Currency', 'Inventory (default warehouse)', 'Shipping Price (without VAT) (default warehouse)']
+    REQUIRED_FIELDS: Object.values(JOOM_CSV_FIELDS.REQUIRED)
   }
 };
 

@@ -26,11 +26,11 @@ function exportJoomCsv(options = {}) {
     const targetProductsData = getTargetProducts(targetProducts);
     if (!targetProductsData || targetProductsData.length === 0) {
       const ui = SpreadsheetApp.getUi();
-      ui.alert('エラー', '出力対象の商品が見つかりません。', ui.ButtonSet.OK);
+      ui.alert('エラー', '出力対象の商品が見つかりません。\n\n※ 在庫数が0または未設定の商品は自動的に除外されます。', ui.ButtonSet.OK);
       return;
     }
     
-    console.log(`対象商品数: ${targetProductsData.length}件`);
+    console.log(`対象商品数: ${targetProductsData.length}件（在庫数フィルタリング適用後）`);
     
     // 2. データバリデーション
     if (validateData) {
@@ -61,13 +61,38 @@ function exportJoomCsv(options = {}) {
       try {
         const tempSheet = spreadsheet.insertSheet(tempSheetName);
         
-        // CSVデータを行に分割
+        // CSVデータを行とフィールドに分割
         const csvRows = csvData.split('\n');
-        const data = csvRows.map(row => [row]);
+        const data = csvRows.map(row => {
+          // 簡易的なCSVパース（エスケープされたカンマを考慮）
+          const fields = [];
+          let currentField = '';
+          let inQuotes = false;
+          
+          for (let i = 0; i < row.length; i++) {
+            const char = row[i];
+            if (char === '"') {
+              if (inQuotes && row[i + 1] === '"') {
+                currentField += '"';
+                i++; // 次の引用符をスキップ
+              } else {
+                inQuotes = !inQuotes;
+              }
+            } else if (char === ',' && !inQuotes) {
+              fields.push(currentField);
+              currentField = '';
+            } else {
+              currentField += char;
+            }
+          }
+          fields.push(currentField);
+          return fields;
+        });
         
         // データをシートに書き込み
-        tempSheet.getRange(1, 1, data.length, 1).setValues(data);
-        
+        if (data.length > 0 && data[0].length > 0) {
+          tempSheet.getRange(1, 1, data.length, data[0].length).setValues(data);
+        }        
         // ファイル名をシート名に設定
         tempSheet.setName(fileName.replace('.csv', ''));
         
@@ -147,6 +172,31 @@ function getTargetProducts(targetProducts) {
     stockStatus: headers.indexOf('在庫ステータス'),
     joomStatus: headers.indexOf('Joom連携ステータス')
   };
+
+  // 必須ヘッダーの検証
+  const requiredHeaders = {
+    productId: '商品ID',
+    productName: '商品名',
+    sku: 'SKU',
+    description: '商品説明',
+    mainImageUrl: 'メイン画像URL',
+    sellingPrice: '販売価格',
+    weight: '重量',
+    currency: '通貨',
+    stockQuantity: '在庫数量',
+    joomStatus: 'Joom連携ステータス'
+  };
+
+  const missingHeaders = [];
+  for (const [key, headerName] of Object.entries(requiredHeaders)) {
+    if (columnIndexes[key] === -1) {
+      missingHeaders.push(headerName);
+    }
+  }
+
+  if (missingHeaders.length > 0) {
+    throw new Error(`在庫管理シートに必須のヘッダーが見つかりません: ${missingHeaders.join(', ')}\n\n見つからないヘッダー:\n${missingHeaders.map(h => `- ${h}`).join('\n')}\n\n在庫管理シートの1行目にこれらのヘッダーが含まれていることを確認してください。`);
+  }
   
   let filteredRows = rows;
   
@@ -173,6 +223,22 @@ function getTargetProducts(targetProducts) {
     default:
       // 全商品
       break;
+  }
+  
+  // 在庫数によるフィルタリング（在庫数が0または空の商品を除外）
+  const originalCount = filteredRows.length;
+  filteredRows = filteredRows.filter(row => {
+    const stockQuantity = row[columnIndexes.stockQuantity];
+    // 在庫数が数値で0より大きい場合のみ出力対象とする
+    return stockQuantity && !isNaN(stockQuantity) && stockQuantity > 0;
+  });
+  
+  const filteredCount = filteredRows.length;
+  const excludedCount = originalCount - filteredCount;
+  
+  if (excludedCount > 0) {
+    console.log(`在庫数フィルタリング: ${excludedCount}件の商品を除外しました（在庫数0または未設定）`);
+    console.log(`出力対象商品数: ${originalCount}件 → ${filteredCount}件`);
   }
   
   return filteredRows.map(row => ({
@@ -385,7 +451,7 @@ function generateJoomCsv(productsData, includeRecommended) {
     const searchTags = getSetting('検索タグ') || '';
     
     const row = [
-      product.sku || '',
+      product.productId || '',
       product.productName || '',
       product.description || '',
       product.mainImageUrl || '',
@@ -440,6 +506,9 @@ function convertWeightToKg(weightInGrams) {
  */
 function updateJoomStatus(productIds, status) {
   try {
+    const now = new Date();
+    const currentTime = Utilities.formatDate(now, 'JST', 'yyyy-MM-dd HH:mm:ss');
+    
     const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
     const inventorySheet = spreadsheet.getSheetByName(SHEET_NAMES.INVENTORY);
     
@@ -504,9 +573,6 @@ function updateJoomStatus(productIds, status) {
       }
     }
     
-    const now = new Date();
-    const currentTime = Utilities.formatDate(now, 'JST', 'yyyy-MM-dd HH:mm:ss');
-    
     productIds.forEach(productId => {
       for (let i = 1; i < data.length; i++) {
         if (data[i][productIdColumn] === productId) {
@@ -541,6 +607,113 @@ function exportUnlinkedProductsCsv() {
     includeRecommended: true,
     validateData: true
   });
+}
+
+/**
+ * 在庫数フィルタリング機能のテスト用関数
+ * 現在のCSVファイル形式での動作確認
+ */
+function testInventoryFiltering() {
+  try {
+    console.log('在庫数フィルタリング機能のテストを開始します...');
+    
+    // テスト用の商品データ（現在のCSVファイルの内容を模擬）
+    const testProducts = [
+      {
+        productId: '1',
+        productName: 'iPhone 15 Pro 128GB',
+        sku: '1',
+        description: '最新のiPhone 15 Pro 128GBモデル。A17 Proチップ搭載で高性能。',
+        mainImageUrl: 'https://via.placeholder.com/500x500.jpg',
+        sellingPrice: 150000,
+        currency: 'JPY',
+        stockQuantity: 1, // 在庫あり
+        shippingPrice: 0,
+        joomStatus: '未連携'
+      },
+      {
+        productId: '2',
+        productName: 'MacBook Air M2 13インチ',
+        sku: '2',
+        description: 'MacBook Air M2 13インチ。M2チップで高速処理。軽量設計。',
+        mainImageUrl: 'https://example.com/images/macbook-air-m2.jpg',
+        sellingPrice: 180000,
+        currency: 'JPY',
+        stockQuantity: 1, // 在庫あり
+        shippingPrice: 0,
+        joomStatus: '未連携'
+      },
+      {
+        productId: '3',
+        productName: 'AirPods Pro 第2世代',
+        sku: '3',
+        description: 'AirPods Pro 第2世代。ノイズキャンセリング機能搭載。',
+        mainImageUrl: 'https://example.com/images/airpods-pro-2nd.jpg',
+        sellingPrice: 35000,
+        currency: 'JPY',
+        stockQuantity: null, // 在庫なし（空欄）
+        shippingPrice: 0,
+        joomStatus: '未連携'
+      },
+      {
+        productId: '4',
+        productName: 'iPad Air 第5世代',
+        sku: '4',
+        description: 'iPad Air 第5世代。M1チップ搭載で高性能タブレット。',
+        mainImageUrl: 'https://example.com/images/ipad-air-5.jpg',
+        sellingPrice: 80000,
+        currency: 'JPY',
+        stockQuantity: 1, // 在庫あり
+        shippingPrice: 0,
+        joomStatus: '未連携'
+      },
+      {
+        productId: '5',
+        productName: 'Apple Watch Series 9',
+        sku: '5',
+        description: 'Apple Watch Series 9。健康管理とスマートウォッチ機能。',
+        mainImageUrl: 'https://example.com/images/apple-watch-s9.jpg',
+        sellingPrice: 60000,
+        currency: 'JPY',
+        stockQuantity: 1, // 在庫あり
+        shippingPrice: 0,
+        joomStatus: '未連携'
+      }
+    ];
+    
+    console.log(`テスト対象商品数: ${testProducts.length}件`);
+    
+    // 在庫数フィルタリングを適用
+    const filteredProducts = testProducts.filter(product => {
+      const stockQuantity = product.stockQuantity;
+      return stockQuantity && !isNaN(stockQuantity) && stockQuantity > 0;
+    });
+    
+    console.log(`フィルタリング後商品数: ${filteredProducts.length}件`);
+    
+    // 除外された商品を表示
+    const excludedProducts = testProducts.filter(product => {
+      const stockQuantity = product.stockQuantity;
+      return !stockQuantity || isNaN(stockQuantity) || stockQuantity <= 0;
+    });
+    
+    if (excludedProducts.length > 0) {
+      console.log(`除外された商品 (${excludedProducts.length}件):`);
+      excludedProducts.forEach(product => {
+        console.log(`- ${product.productName} (在庫数: ${product.stockQuantity})`);
+      });
+    }
+    
+    console.log(`出力対象商品 (${filteredProducts.length}件):`);
+    filteredProducts.forEach(product => {
+      console.log(`- ${product.productName} (在庫数: ${product.stockQuantity})`);
+    });
+    
+    console.log('在庫数フィルタリング機能のテストが完了しました。');
+    
+  } catch (error) {
+    console.error('テスト中にエラーが発生しました:', error);
+  }
 }
 
 
