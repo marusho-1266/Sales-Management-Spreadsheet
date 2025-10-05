@@ -148,7 +148,75 @@ function syncPriceHistoryMenu() {
  */
 function showPriceNotificationSettings() {
   const ui = SpreadsheetApp.getUi();
-  ui.alert('価格変動通知設定', '価格変動通知設定機能は今後実装予定です。', ui.ButtonSet.OK);
+  
+  try {
+    // 現在の設定値を取得
+    const currentEmail = getSetting('価格変動通知メールアドレス') || '';
+    const currentEnabled = getSetting('価格変動通知有効化') || 'true';
+    
+    // メールアドレス入力
+    const emailResponse = ui.prompt(
+      '価格変動通知メールアドレス設定',
+      `現在の設定: ${currentEmail}\n\n通知先のメールアドレスを入力してください:`,
+      ui.ButtonSet.OK_CANCEL
+    );
+    
+    if (emailResponse.getSelectedButton() === ui.Button.OK) {
+      const newEmail = emailResponse.getResponseText().trim();
+      
+      // メールアドレスの基本的な検証
+      if (newEmail && newEmail.includes('@') && newEmail.includes('.')) {
+        // 通知有効化の確認
+        const enableResponse = ui.alert(
+          '価格変動通知の有効化',
+          `メールアドレス: ${newEmail}\n\n価格変動通知を有効にしますか？`,
+          ui.ButtonSet.YES_NO
+        );
+        
+        const enableNotification = enableResponse === ui.Button.YES ? 'true' : 'false';
+        
+        // 設定を更新
+        updateSetting('価格変動通知メールアドレス', newEmail);
+        updateSetting('価格変動通知有効化', enableNotification);
+        
+        // 確認メッセージ
+        const statusText = enableNotification === 'true' ? '有効' : '無効';
+        ui.alert(
+          '設定完了',
+          `価格変動通知の設定を更新しました。\n\nメールアドレス: ${newEmail}\n通知状態: ${statusText}`,
+          ui.ButtonSet.OK
+        );
+        
+        console.log(`価格変動通知設定を更新しました: ${newEmail}, 有効化: ${enableNotification}`);
+        
+      } else if (newEmail === '') {
+        // 空の場合は無効化
+        updateSetting('価格変動通知メールアドレス', '');
+        updateSetting('価格変動通知有効化', 'false');
+        
+        ui.alert(
+          '設定完了',
+          'メールアドレスをクリアし、価格変動通知を無効にしました。',
+          ui.ButtonSet.OK
+        );
+        
+      } else {
+        ui.alert(
+          'エラー',
+          '有効なメールアドレスを入力してください。',
+          ui.ButtonSet.OK
+        );
+      }
+    }
+    
+  } catch (error) {
+    console.error('価格変動通知設定中にエラーが発生しました:', error);
+    ui.alert(
+      'エラー',
+      '設定の更新中にエラーが発生しました: ' + error.message,
+      ui.ButtonSet.OK
+    );
+  }
 }
 
 /**

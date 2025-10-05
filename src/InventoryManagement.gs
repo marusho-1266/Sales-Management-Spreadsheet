@@ -515,7 +515,9 @@ function addDefaultSettings(sheet) {
     ['デフォルト配送価格', '0', 'デフォルトの配送価格（円）', currentTime],
     ['カテゴリID', '', 'JoomカテゴリID（必要に応じて設定）', currentTime],
     ['検索タグ', '', '商品検索用タグ（カンマ区切り）', currentTime],
-    ['危険物種類', 'notdangerous', '配送時の危険物種類', currentTime]
+    ['危険物種類', 'notdangerous', '配送時の危険物種類', currentTime],
+    ['価格変動通知メールアドレス', '', '価格変動時の通知先メールアドレス', currentTime],
+    ['価格変動通知有効化', 'true', '価格変動通知機能の有効/無効', currentTime]
   ];
   
   const dataRange = sheet.getRange(2, 1, defaultSettings.length, defaultSettings[0].length);
@@ -645,5 +647,156 @@ function reloadSettingsCache() {
   invalidateSettingsCache();
   loadSettingsCache();
   console.log('設定キャッシュを手動で再読み込みしました');
+}
+
+/**
+ * 価格変動通知メールを送信
+ * @param {number} productId - 商品ID
+ * @param {string} productName - 商品名
+ * @param {number} oldPurchasePrice - 変更前仕入れ価格
+ * @param {number} newPurchasePrice - 変更後仕入れ価格
+ * @param {number} oldSellingPrice - 変更前販売価格
+ * @param {number} newSellingPrice - 変更後販売価格
+ * @param {number} purchasePriceChange - 仕入れ価格変動額
+ * @param {number} sellingPriceChange - 販売価格変動額
+ * @param {number} purchaseChangeRate - 仕入れ価格変動率
+ * @param {number} sellingChangeRate - 販売価格変動率
+ */
+function sendPriceChangeNotification(productId, productName, oldPurchasePrice, newPurchasePrice, oldSellingPrice, newSellingPrice, purchasePriceChange, sellingPriceChange, purchaseChangeRate, sellingChangeRate) {
+  try {
+    // 通知機能が有効かチェック
+    const notificationEnabled = getSetting('価格変動通知有効化');
+    if (notificationEnabled !== 'true') {
+      console.log('価格変動通知が無効になっているため、メール送信をスキップしました');
+      return false;
+    }
+    
+    // メールアドレスを取得
+    const emailAddress = getSetting('価格変動通知メールアドレス');
+    if (!emailAddress || emailAddress.trim() === '') {
+      console.log('価格変動通知メールアドレスが設定されていないため、メール送信をスキップしました');
+      return false;
+    }
+    
+    // メール件名
+    const subject = `【価格変動通知】商品ID: ${productId} - ${productName}`;
+    
+    // メール本文を作成
+    const currentTime = Utilities.formatDate(new Date(), 'JST', 'yyyy-MM-dd HH:mm:ss');
+    
+    let body = `価格変動が検出されました。\n\n`;
+    body += `【商品情報】\n`;
+    body += `商品ID: ${productId}\n`;
+    body += `商品名: ${productName}\n`;
+    body += `変動検知日時: ${currentTime}\n\n`;
+    
+    // 仕入れ価格変動情報
+    if (purchasePriceChange !== 0) {
+      body += `【仕入れ価格変動】\n`;
+      body += `変更前: ¥${oldPurchasePrice.toLocaleString()}\n`;
+      body += `変更後: ¥${newPurchasePrice.toLocaleString()}\n`;
+      body += `変動額: ${purchasePriceChange > 0 ? '+' : ''}¥${purchasePriceChange.toLocaleString()}\n`;
+      body += `変動率: ${purchaseChangeRate > 0 ? '+' : ''}${(purchaseChangeRate * 100).toFixed(2)}%\n\n`;
+    }
+    
+    // 販売価格変動情報
+    if (sellingPriceChange !== 0) {
+      body += `【販売価格変動】\n`;
+      body += `変更前: ¥${oldSellingPrice.toLocaleString()}\n`;
+      body += `変更後: ¥${newSellingPrice.toLocaleString()}\n`;
+      body += `変動額: ${sellingPriceChange > 0 ? '+' : ''}¥${sellingPriceChange.toLocaleString()}\n`;
+      body += `変動率: ${sellingChangeRate > 0 ? '+' : ''}${(sellingChangeRate * 100).toFixed(2)}%\n\n`;
+    }
+    
+    body += `---\n`;
+    body += `このメールは在庫管理システムから自動送信されています。\n`;
+    body += `価格履歴シートで詳細を確認してください。`;
+    
+    // メール送信（GmailAppを使用）
+    try {
+      MailApp.sendEmail({
+        to: emailAddress.trim(),
+        subject: subject,
+        body: body
+      });
+    } catch (mailError) {
+      // MailAppが失敗した場合はGmailAppを試す
+      console.log('MailAppでの送信に失敗したため、GmailAppで送信します');
+      GmailApp.sendEmail(emailAddress.trim(), subject, body);
+    }
+    
+    console.log(`価格変動通知メールを送信しました: ${emailAddress}`);
+    return true;
+    
+  } catch (error) {
+    console.error('価格変動通知メールの送信中にエラーが発生しました:', error);
+    return false;
+  }
+}
+
+/**
+ * メール送信権限のテスト
+ */
+function testMailPermission() {
+  try {
+    const userEmail = Session.getActiveUser().getEmail();
+    MailApp.sendEmail({
+      to: userEmail,
+      subject: '権限テスト - 価格変動通知システム',
+      body: 'メール送信権限のテストです。このメールが受信できれば権限設定は正常です。'
+    });
+    console.log('メール送信権限が正常に設定されています');
+    return true;
+  } catch (error) {
+    console.error('権限エラー:', error.message);
+    return false;
+  }
+}
+
+/**
+ * 価格変動通知機能のテスト
+ * テスト用のデータでメール送信を実行
+ */
+function testPriceChangeNotification() {
+  try {
+    console.log('価格変動通知機能のテストを開始します...');
+    
+    // テスト用のデータ
+    const testProductId = 999;
+    const testProductName = 'テスト商品';
+    const testOldPurchasePrice = 1000;
+    const testNewPurchasePrice = 1200;
+    const testOldSellingPrice = 1500;
+    const testNewSellingPrice = 1800;
+    const testPurchasePriceChange = 200;
+    const testSellingPriceChange = 300;
+    const testPurchaseChangeRate = 0.20; // 20%
+    const testSellingChangeRate = 0.20; // 20%
+    
+    const result = sendPriceChangeNotification(
+      testProductId,
+      testProductName,
+      testOldPurchasePrice,
+      testNewPurchasePrice,
+      testOldSellingPrice,
+      testNewSellingPrice,
+      testPurchasePriceChange,
+      testSellingPriceChange,
+      testPurchaseChangeRate,
+      testSellingChangeRate
+    );
+    
+    if (result) {
+      console.log('価格変動通知テストが正常に完了しました');
+      return true;
+    } else {
+      console.log('価格変動通知テストが失敗しました');
+      return false;
+    }
+    
+  } catch (error) {
+    console.error('価格変動通知テスト中にエラーが発生しました:', error);
+    return false;
+  }
 }
 

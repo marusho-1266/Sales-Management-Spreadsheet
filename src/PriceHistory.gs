@@ -293,6 +293,25 @@ function updatePriceHistory(productId, newPurchasePrice, newSellingPrice, notes 
     // 商品名を取得（在庫管理シートから）
     const productName = getProductNameById(spreadsheet, validProductId);
     
+    // 価格変動通知メールを送信
+    try {
+      sendPriceChangeNotification(
+        validProductId,
+        productName,
+        currentPurchasePrice,
+        newPurchasePrice,
+        currentSellingPrice,
+        newSellingPrice,
+        purchasePriceChange,
+        sellingPriceChange,
+        purchaseChangeRate,
+        sellingChangeRate
+      );
+    } catch (error) {
+      console.error('価格変動通知メールの送信でエラーが発生しました:', error);
+      // メール送信エラーは価格履歴更新の成功には影響しない
+    }
+    
     // データを更新
     const updateData = [
       validProductId,
