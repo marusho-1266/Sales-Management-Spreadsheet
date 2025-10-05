@@ -157,7 +157,7 @@ function showPriceNotificationSettings() {
     // メニュー選択
     const menuResponse = ui.alert(
       '価格変動通知設定',
-      `現在の設定:\nメールアドレス: ${currentEmail || '未設定'}\n通知状態: ${currentEnabled === 'true' ? '有効' : '無効'}\n\n設定を選択してください:`,
+      `現在の設定:\nメールアドレス: ${currentEmail || '未設定'}\n通知状態: ${currentEnabled === 'true' ? '有効' : '無効'}\n\n設定を選択してください:\n\n「はい」: メールアドレス設定\n「いいえ」: 通知の有効/無効設定\n「キャンセル」: 設定を変更せずに終了`,
       ui.ButtonSet.YES_NO_CANCEL
     );
     

@@ -651,18 +651,19 @@ function reloadSettingsCache() {
 
 /**
  * 価格変動通知メールを送信
- * @param {number} productId - 商品ID
- * @param {string} productName - 商品名
- * @param {number} oldPurchasePrice - 変更前仕入れ価格
- * @param {number} newPurchasePrice - 変更後仕入れ価格
- * @param {number} oldSellingPrice - 変更前販売価格
- * @param {number} newSellingPrice - 変更後販売価格
- * @param {number} purchasePriceChange - 仕入れ価格変動額
- * @param {number} sellingPriceChange - 販売価格変動額
- * @param {number} purchaseChangeRate - 仕入れ価格変動率
- * @param {number} sellingChangeRate - 販売価格変動率
+ * @param {Object} priceChangeData - 価格変動データ
+ * @param {number} priceChangeData.productId - 商品ID
+ * @param {string} priceChangeData.productName - 商品名
+ * @param {number} priceChangeData.oldPurchasePrice - 変更前仕入れ価格
+ * @param {number} priceChangeData.newPurchasePrice - 変更後仕入れ価格
+ * @param {number} priceChangeData.oldSellingPrice - 変更前販売価格
+ * @param {number} priceChangeData.newSellingPrice - 変更後販売価格
+ * @param {number} priceChangeData.purchasePriceChange - 仕入れ価格変動額
+ * @param {number} priceChangeData.sellingPriceChange - 販売価格変動額
+ * @param {number} priceChangeData.purchaseChangeRate - 仕入れ価格変動率
+ * @param {number} priceChangeData.sellingChangeRate - 販売価格変動率
  */
-function sendPriceChangeNotification(productId, productName, oldPurchasePrice, newPurchasePrice, oldSellingPrice, newSellingPrice, purchasePriceChange, sellingPriceChange, purchaseChangeRate, sellingChangeRate) {
+function sendPriceChangeNotification(priceChangeData) {
   try {
     // 通知機能が有効かチェック
     const notificationEnabled = getSetting('価格変動通知有効化');
@@ -679,38 +680,37 @@ function sendPriceChangeNotification(productId, productName, oldPurchasePrice, n
     }
     
     // メール件名
-    const subject = `【価格変動通知】商品ID: ${productId} - ${productName}`;
+    const subject = `【価格変動通知】商品ID: ${priceChangeData.productId} - ${priceChangeData.productName}`;
     
     // メール本文を作成
     const currentTime = Utilities.formatDate(new Date(), 'JST', 'yyyy-MM-dd HH:mm:ss');
     
-    let body = `価格変動が検出されました。\n\n`;
-    body += `【商品情報】\n`;
-    body += `商品ID: ${productId}\n`;
-    body += `商品名: ${productName}\n`;
-    body += `変動検知日時: ${currentTime}\n\n`;
+    // 仕入れ価格変動セクション
+    const purchasePriceSection = priceChangeData.purchasePriceChange !== 0 ? `
+【仕入れ価格変動】
+変更前: ¥${priceChangeData.oldPurchasePrice.toLocaleString()}
+変更後: ¥${priceChangeData.newPurchasePrice.toLocaleString()}
+変動額: ${priceChangeData.purchasePriceChange > 0 ? '+' : ''}¥${priceChangeData.purchasePriceChange.toLocaleString()}
+変動率: ${priceChangeData.purchaseChangeRate > 0 ? '+' : ''}${(priceChangeData.purchaseChangeRate * 100).toFixed(2)}%` : '';
     
-    // 仕入れ価格変動情報
-    if (purchasePriceChange !== 0) {
-      body += `【仕入れ価格変動】\n`;
-      body += `変更前: ¥${oldPurchasePrice.toLocaleString()}\n`;
-      body += `変更後: ¥${newPurchasePrice.toLocaleString()}\n`;
-      body += `変動額: ${purchasePriceChange > 0 ? '+' : ''}¥${purchasePriceChange.toLocaleString()}\n`;
-      body += `変動率: ${purchaseChangeRate > 0 ? '+' : ''}${(purchaseChangeRate * 100).toFixed(2)}%\n\n`;
-    }
+    // 販売価格変動セクション
+    const sellingPriceSection = priceChangeData.sellingPriceChange !== 0 ? `
+【販売価格変動】
+変更前: ¥${priceChangeData.oldSellingPrice.toLocaleString()}
+変更後: ¥${priceChangeData.newSellingPrice.toLocaleString()}
+変動額: ${priceChangeData.sellingPriceChange > 0 ? '+' : ''}¥${priceChangeData.sellingPriceChange.toLocaleString()}
+変動率: ${priceChangeData.sellingChangeRate > 0 ? '+' : ''}${(priceChangeData.sellingChangeRate * 100).toFixed(2)}%` : '';
     
-    // 販売価格変動情報
-    if (sellingPriceChange !== 0) {
-      body += `【販売価格変動】\n`;
-      body += `変更前: ¥${oldSellingPrice.toLocaleString()}\n`;
-      body += `変更後: ¥${newSellingPrice.toLocaleString()}\n`;
-      body += `変動額: ${sellingPriceChange > 0 ? '+' : ''}¥${sellingPriceChange.toLocaleString()}\n`;
-      body += `変動率: ${sellingChangeRate > 0 ? '+' : ''}${(sellingChangeRate * 100).toFixed(2)}%\n\n`;
-    }
-    
-    body += `---\n`;
-    body += `このメールは在庫管理システムから自動送信されています。\n`;
-    body += `価格履歴シートで詳細を確認してください。`;
+    const body = `価格変動が検出されました。
+
+【商品情報】
+商品ID: ${priceChangeData.productId}
+商品名: ${priceChangeData.productName}
+変動検知日時: ${currentTime}${purchasePriceSection}${sellingPriceSection}
+
+---
+このメールは在庫管理システムから自動送信されています。
+価格履歴シートで詳細を確認してください。`;
     
     // メール送信（GmailAppを使用）
     try {
@@ -769,29 +769,20 @@ function testPriceChangeNotification() {
     console.log('価格変動通知機能のテストを開始します...');
     
     // テスト用のデータ
-    const testProductId = 999;
-    const testProductName = 'テスト商品';
-    const testOldPurchasePrice = 1000;
-    const testNewPurchasePrice = 1200;
-    const testOldSellingPrice = 1500;
-    const testNewSellingPrice = 1800;
-    const testPurchasePriceChange = 200;
-    const testSellingPriceChange = 300;
-    const testPurchaseChangeRate = 0.20; // 20%
-    const testSellingChangeRate = 0.20; // 20%
+    const testPriceChangeData = {
+      productId: 999,
+      productName: 'テスト商品',
+      oldPurchasePrice: 1000,
+      newPurchasePrice: 1200,
+      oldSellingPrice: 1500,
+      newSellingPrice: 1800,
+      purchasePriceChange: 200,
+      sellingPriceChange: 300,
+      purchaseChangeRate: 0.20, // 20%
+      sellingChangeRate: 0.20   // 20%
+    };
     
-    const result = sendPriceChangeNotification(
-      testProductId,
-      testProductName,
-      testOldPurchasePrice,
-      testNewPurchasePrice,
-      testOldSellingPrice,
-      testNewSellingPrice,
-      testPurchasePriceChange,
-      testSellingPriceChange,
-      testPurchaseChangeRate,
-      testSellingChangeRate
-    );
+    const result = sendPriceChangeNotification(testPriceChangeData);
     
     if (result) {
       console.log('価格変動通知テストが正常に完了しました');
