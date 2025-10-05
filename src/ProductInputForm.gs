@@ -47,7 +47,7 @@ function saveNewProduct(formData) {
     // 商品の仕入れには手数料が発生しないため、手数料は考慮しない
     const profit = formData.sellingPrice - formData.purchasePrice;
     
-    // 新しい行のデータを準備
+    // 新しい行のデータを準備（Joom対応フィールド含む）
     const newRowData = [
       formData.productId,           // 商品ID
       formData.productName,         // 商品名
@@ -58,6 +58,13 @@ function saveNewProduct(formData) {
       formData.purchasePrice,       // 仕入れ価格
       formData.sellingPrice,        // 販売価格
       formData.weight,              // 重量
+      // Joom対応フィールド
+      formData.description || '',   // 商品説明
+      formData.mainImageUrl || '',  // メイン画像URL
+      formData.currency || 'JPY',   // 通貨
+      formData.shippingPrice || 0,  // 配送価格
+      formData.stockQuantity || (formData.stockStatus === '在庫あり' ? 1 : 0), // 在庫数量
+      // 既存フィールド
       formData.stockStatus,         // 在庫ステータス
       profit,                       // 利益（計算値）
       timestamp,                    // 最終更新日時
@@ -71,11 +78,13 @@ function saveNewProduct(formData) {
     const lastRow = inventorySheet.getLastRow();
     
     // 数値列の書式設定
-    inventorySheet.getRange(lastRow, 1, 1, 1).setNumberFormat('0');        // 商品ID
-    inventorySheet.getRange(lastRow, 7, 1, 1).setNumberFormat('#,##0');    // 仕入れ価格
-    inventorySheet.getRange(lastRow, 8, 1, 1).setNumberFormat('#,##0');    // 販売価格
-    inventorySheet.getRange(lastRow, 9, 1, 1).setNumberFormat('0');        // 重量
-    inventorySheet.getRange(lastRow, 11, 1, 1).setNumberFormat('#,##0');   // 利益
+    inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.PRODUCT_ID, 1, 1).setNumberFormat('0');        // 商品ID
+    inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.PURCHASE_PRICE, 1, 1).setNumberFormat('#,##0');    // 仕入れ価格
+    inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.SELLING_PRICE, 1, 1).setNumberFormat('#,##0');    // 販売価格
+    inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.WEIGHT, 1, 1).setNumberFormat('0');        // 重量
+    inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.SHIPPING_PRICE, 1, 1).setNumberFormat('#,##0');   // 配送価格
+    inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.STOCK_QUANTITY, 1, 1).setNumberFormat('0');       // 在庫数量
+    inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.PROFIT, 1, 1).setNumberFormat('#,##0');   // 利益
     
     // 価格履歴を自動で作成
     try {
@@ -173,8 +182,8 @@ function getNextProductId() {
       return 1;
     }
     
-    // 商品ID列（A列）からデータを取得
-    const productIds = inventorySheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    // 商品ID列からデータを取得
+    const productIds = inventorySheet.getRange(2, COLUMN_INDEXES.INVENTORY.PRODUCT_ID, lastRow - 1, 1).getValues();
     
     let maxNumber = 0;
     for (let i = 0; i < productIds.length; i++) {
@@ -571,6 +580,44 @@ function getProductInputFormHtml() {
           </div>
         </div>
         
+        <!-- Joom対応フィールドセクション -->
+        
+        <div class="form-group full-width">
+          <label for="description">商品説明</label>
+          <textarea id="description" name="description" placeholder="商品の詳細説明を入力してください（Joom出品用）..."></textarea>
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label for="mainImageUrl">メイン画像URL</label>
+            <input type="url" id="mainImageUrl" name="mainImageUrl" placeholder="https://example.com/images/product.jpg">
+            <div class="error-message" id="mainImageUrlError">有効なURLを入力してください</div>
+          </div>
+          
+          <div class="form-group">
+            <label for="currency">通貨</label>
+            <select id="currency" name="currency">
+              <option value="JPY">JPY（日本円）</option>
+              <option value="USD">USD（米ドル）</option>
+              <option value="EUR">EUR（ユーロ）</option>
+            </select>
+          </div>
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label for="shippingPrice">配送価格</label>
+            <input type="number" id="shippingPrice" name="shippingPrice" placeholder="0" min="0" value="0">
+            <div class="error-message" id="shippingPriceError">配送価格を入力してください（円）</div>
+          </div>
+          
+          <div class="form-group">
+            <label for="stockQuantity">在庫数量</label>
+            <input type="number" id="stockQuantity" name="stockQuantity" placeholder="1" min="0" value="1">
+            <div class="error-message" id="stockQuantityError">在庫数量を入力してください</div>
+          </div>
+        </div>
+        
         <!-- 在庫情報セクション -->
         <div class="section-title">📦 在庫情報</div>
         
@@ -653,6 +700,9 @@ function getProductInputFormHtml() {
     document.getElementById('purchasePrice').addEventListener('input', updatePricePreview);
     document.getElementById('sellingPrice').addEventListener('input', updatePricePreview);
     
+    // 在庫ステータス変更時の処理
+    document.getElementById('stockStatus').addEventListener('change', updateStockQuantity);
+    
     
     // 仕入れ元情報の更新
     function updateSupplierInfo() {
@@ -723,6 +773,20 @@ function getProductInputFormHtml() {
       }
     }
     
+    // 在庫ステータス変更時の在庫数量自動更新
+    function updateStockQuantity() {
+      var stockStatus = document.getElementById('stockStatus').value;
+      var stockQuantityField = document.getElementById('stockQuantity');
+      
+      if (stockStatus === '在庫あり') {
+        stockQuantityField.value = 1;
+      } else if (stockStatus === '売り切れ') {
+        stockQuantityField.value = 0;
+      } else if (stockStatus === '予約受付中') {
+        stockQuantityField.value = 0;
+      }
+    }
+    
     // ローディング表示の制御
     function showLoadingOverlay() {
       isProcessing = true;
@@ -785,6 +849,13 @@ function getProductInputFormHtml() {
           purchasePrice: parseFloat(document.getElementById('purchasePrice').value),
           sellingPrice: parseFloat(document.getElementById('sellingPrice').value),
           weight: parseInt(document.getElementById('weight').value),
+          // Joom対応フィールド
+          description: document.getElementById('description').value,
+          mainImageUrl: document.getElementById('mainImageUrl').value,
+          currency: document.getElementById('currency').value,
+          shippingPrice: parseFloat(document.getElementById('shippingPrice').value) || 0,
+          stockQuantity: parseInt(document.getElementById('stockQuantity').value) || 1,
+          // 既存フィールド
           stockStatus: document.getElementById('stockStatus').value,
           notes: document.getElementById('notes').value
         };
@@ -989,7 +1060,7 @@ function testNotesFunctionality() {
       const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
       const inventorySheet = spreadsheet.getSheetByName('在庫管理');
       const lastRow = inventorySheet.getLastRow();
-      const notesValue = inventorySheet.getRange(lastRow, 13).getValue(); // M列（備考列）
+      const notesValue = inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.NOTES).getValue(); // 備考列
       
       console.log('保存された備考:', notesValue);
       

@@ -181,15 +181,15 @@ function getInventoryDataForSelection() {
   // ヘッダー行をスキップして商品データを取得
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
-    if (row[0] && row[1] && row[9] === '在庫あり') { // 商品ID、商品名が存在し、在庫ステータスが「在庫あり」の場合
+    if (row[0] && row[1] && row[14] === '在庫あり') { // 商品ID、商品名が存在し、在庫ステータスが「在庫あり」の場合（O列=14）
       products.push({
         id: row[0],
         name: row[1],
         sku: row[2],
         asin: row[3],
-        stockStatus: row[9],
-        purchasePrice: row[6],
-        sellingPrice: row[7]
+        stockStatus: row[14], // O列（在庫ステータス）
+        purchasePrice: row[6], // G列（仕入れ価格）
+        sellingPrice: row[7]   // H列（販売価格）
       });
     }
   }
