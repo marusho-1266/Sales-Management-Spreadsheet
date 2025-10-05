@@ -293,6 +293,22 @@ function updatePriceHistory(productId, newPurchasePrice, newSellingPrice, notes 
     // 商品名を取得（在庫管理シートから）
     const productName = getProductNameById(spreadsheet, validProductId);
     
+    // 価格変動通知メールを送信
+    const priceChangeData = {
+      productId: validProductId,
+      productName: productName,
+      oldPurchasePrice: currentPurchasePrice,
+      newPurchasePrice: newPurchasePrice,
+      oldSellingPrice: currentSellingPrice,
+      newSellingPrice: newSellingPrice,
+      purchasePriceChange: purchasePriceChange,
+      sellingPriceChange: sellingPriceChange,
+      purchaseChangeRate: purchaseChangeRate,
+      sellingChangeRate: sellingChangeRate
+    };
+    
+    sendPriceChangeNotification(priceChangeData);
+    
     // データを更新
     const updateData = [
       validProductId,

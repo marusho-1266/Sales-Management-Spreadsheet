@@ -144,11 +144,147 @@ function syncPriceHistoryMenu() {
 }
 
 /**
- * 価格変動通知設定
+ * 価格変動通知設定メニュー
  */
 function showPriceNotificationSettings() {
   const ui = SpreadsheetApp.getUi();
-  ui.alert('価格変動通知設定', '価格変動通知設定機能は今後実装予定です。', ui.ButtonSet.OK);
+  
+  try {
+    // 現在の設定値を取得
+    const currentEmail = getSetting('価格変動通知メールアドレス') || '';
+    const currentEnabled = getSetting('価格変動通知有効化') || 'true';
+    
+    // メニュー選択
+    const menuResponse = ui.alert(
+      '価格変動通知設定',
+      `現在の設定:\nメールアドレス: ${currentEmail || '未設定'}\n通知状態: ${currentEnabled === 'true' ? '有効' : '無効'}\n\n設定を選択してください:\n\n「はい」: メールアドレス設定\n「いいえ」: 通知の有効/無効設定\n「キャンセル」: 設定を変更せずに終了`,
+      ui.ButtonSet.YES_NO_CANCEL
+    );
+    
+    if (menuResponse === ui.Button.YES) {
+      // メールアドレス設定
+      showEmailAddressSettings();
+    } else if (menuResponse === ui.Button.NO) {
+      // 通知有効化設定
+      showNotificationEnableSettings();
+    }
+    // CANCELの場合は何もしない
+    
+  } catch (error) {
+    console.error('価格変動通知設定メニューでエラーが発生しました:', error);
+    ui.alert(
+      'エラー',
+      '設定メニューの表示中にエラーが発生しました: ' + error.message,
+      ui.ButtonSet.OK
+    );
+  }
+}
+
+/**
+ * メールアドレス設定
+ */
+function showEmailAddressSettings() {
+  const ui = SpreadsheetApp.getUi();
+  
+  try {
+    const currentEmail = getSetting('価格変動通知メールアドレス') || '';
+    
+    const emailResponse = ui.prompt(
+      '価格変動通知メールアドレス設定',
+      `現在の設定: ${currentEmail}\n\n通知先のメールアドレスを入力してください:\n（空欄にするとメールアドレスをクリアします）`,
+      ui.ButtonSet.OK_CANCEL
+    );
+    
+    if (emailResponse.getSelectedButton() === ui.Button.OK) {
+      const newEmail = emailResponse.getResponseText().trim();
+      
+      // メールアドレスの検証
+      if (newEmail === '') {
+        // 空の場合はクリア
+        updateSetting('価格変動通知メールアドレス', '');
+        ui.alert(
+          '設定完了',
+          'メールアドレスをクリアしました。',
+          ui.ButtonSet.OK
+        );
+        console.log('価格変動通知メールアドレスをクリアしました');
+        
+      } else if (newEmail.includes('@') && newEmail.includes('.')) {
+        // 有効なメールアドレスの場合
+        updateSetting('価格変動通知メールアドレス', newEmail);
+        ui.alert(
+          '設定完了',
+          `メールアドレスを設定しました: ${newEmail}`,
+          ui.ButtonSet.OK
+        );
+        console.log(`価格変動通知メールアドレスを設定しました: ${newEmail}`);
+        
+      } else {
+        ui.alert(
+          'エラー',
+          '有効なメールアドレスを入力してください。',
+          ui.ButtonSet.OK
+        );
+      }
+    }
+    
+  } catch (error) {
+    console.error('メールアドレス設定中にエラーが発生しました:', error);
+    ui.alert(
+      'エラー',
+      'メールアドレス設定中にエラーが発生しました: ' + error.message,
+      ui.ButtonSet.OK
+    );
+  }
+}
+
+/**
+ * 通知有効化設定
+ */
+function showNotificationEnableSettings() {
+  const ui = SpreadsheetApp.getUi();
+  
+  try {
+    const currentEnabled = getSetting('価格変動通知有効化') || 'true';
+    const currentEmail = getSetting('価格変動通知メールアドレス') || '';
+    
+    if (!currentEmail) {
+      ui.alert(
+        'エラー',
+        'メールアドレスが設定されていません。\n先にメールアドレスを設定してください。',
+        ui.ButtonSet.OK
+      );
+      return;
+    }
+    
+    const statusText = currentEnabled === 'true' ? '有効' : '無効';
+    const enableResponse = ui.alert(
+      '価格変動通知の有効化設定',
+      `現在の状態: ${statusText}\nメールアドレス: ${currentEmail}\n\n価格変動通知を${currentEnabled === 'true' ? '無効' : '有効'}にしますか？`,
+      ui.ButtonSet.YES_NO
+    );
+    
+    if (enableResponse === ui.Button.YES) {
+      const newStatus = currentEnabled === 'true' ? 'false' : 'true';
+      updateSetting('価格変動通知有効化', newStatus);
+      
+      const newStatusText = newStatus === 'true' ? '有効' : '無効';
+      ui.alert(
+        '設定完了',
+        `価格変動通知を${newStatusText}に設定しました。`,
+        ui.ButtonSet.OK
+      );
+      console.log(`価格変動通知の有効化を${newStatusText}に設定しました`);
+    }
+    
+  } catch (error) {
+    console.error('通知有効化設定中にエラーが発生しました:', error);
+    ui.alert(
+      'エラー',
+      '通知有効化設定中にエラーが発生しました: ' + error.message,
+      ui.ButtonSet.OK
+    );
+  }
 }
 
 /**
