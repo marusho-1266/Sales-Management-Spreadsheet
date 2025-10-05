@@ -721,8 +721,15 @@ function sendPriceChangeNotification(productId, productName, oldPurchasePrice, n
       });
     } catch (mailError) {
       // MailAppが失敗した場合はGmailAppを試す
-      console.log('MailAppでの送信に失敗したため、GmailAppで送信します');
-      GmailApp.sendEmail(emailAddress.trim(), subject, body);
+      console.error('MailAppでの送信に失敗しました:', mailError);
+      
+      try {
+        GmailApp.sendEmail(emailAddress.trim(), subject, body);
+        console.log('GmailAppでの送信が成功しました');
+      } catch (gmailError) {
+        console.error('GmailAppでの送信も失敗しました:', gmailError);
+        throw new Error(`メール送信に失敗しました。MailApp: ${mailError.message}, GmailApp: ${gmailError.message}`);
+      }
     }
     
     console.log(`価格変動通知メールを送信しました: ${emailAddress}`);
