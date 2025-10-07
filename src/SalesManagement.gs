@@ -5,7 +5,7 @@
  */
 
 /**
- * 売上管理シートの初期化
+ * 売上管理シートの初期化（Joom注文連携対応版）
  */
 function initializeSalesSheet() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
@@ -19,34 +19,122 @@ function initializeSalesSheet() {
   // 既存のデータをクリア
   salesSheet.clear();
   
-  // ヘッダー行を設定
-  const headers = [
-    '注文ID',
-    '注文日',
-    '商品ID',
-    '商品名',
-    'SKU',
-    'ASIN',
-    '数量',
-    '販売価格',
-    '仕入れ価格',
-    '送料',
-    '純利益',
-    '登録日時'
+  // 基本情報フィールド（1-12列）
+  const basicHeaders = [
+    '注文ID',           // A列: Joom注文ID（8文字英数字）
+    '注文日',           // B列: 注文受付日
+    '商品ID',           // C列: Joom製品SKU（在庫管理の商品IDと同一）
+    '商品名',           // D列: 商品名称（在庫管理から取得）
+    'SKU',              // E列: 商品管理コード（在庫管理から取得）
+    'ASIN',             // F列: Amazon商品コード（在庫管理から取得）
+    '数量',             // G列: 注文数量
+    '販売価格',         // H列: 実際の販売価格（円）
+    '仕入れ価格',       // I列: 仕入れ価格（円、在庫管理から取得）
+    '送料',             // J列: 配送料（円）
+    '純利益',           // K列: 手数料差し引き後利益（自動計算）
+    '登録日時'          // L列: データ登録日時
+  ];
+  
+  // 注文ステータス管理フィールド（13-15列）
+  const statusHeaders = [
+    '注文ステータス',   // M列: Joom注文ステータス（approved/shipped等）
+    'Joom連携ステータス', // N列: 連携状況（synced/error等）
+    '最終同期日時'      // O列: 最後に同期した日時
+  ];
+  
+  // 価格詳細管理フィールド（16-19列）
+  const priceHeaders = [
+    '手数料',           // P列: Joom手数料（円）
+    '付加価値税',       // Q列: VAT金額（円）
+    '返金額',           // R列: 返金された金額（円）
+    '購入者GMV'         // S列: 購入者の総商品価値（円）
+  ];
+  
+  // 顧客情報フィールド（20-24列）
+  const customerHeaders = [
+    '顧客名',           // T列: 注文者の氏名
+    '顧客メール',       // U列: 注文者のメールアドレス
+    '顧客電話番号',     // V列: 注文者の電話番号
+    '顧客国コード',     // W列: 顧客の国コード
+    '顧客都道府県'      // X列: 顧客の都道府県
+  ];
+  
+  // 配送情報フィールド（25-30列）
+  const shippingHeaders = [
+    '配送国',           // Y列: 配送先の国コード
+    '配送都道府県',     // Z列: 配送先の都道府県
+    '配送市区町村',     // AA列: 配送先の市区町村
+    '配送住所',         // AB列: 配送先の住所
+    '配送郵便番号',     // AC列: 配送先の郵便番号
+    '配送先住所（完全版）' // AD列: 配送先住所の完全版文字列
+  ];
+  
+  // 出荷・配送管理フィールド（31-35列）
+  const deliveryHeaders = [
+    '追跡番号',         // AE列: 配送追跡番号
+    '配送業者',         // AF列: 配送を担当する業者
+    '出荷日時',         // AG列: 実際の出荷日時
+    '履行日時',         // AH列: 注文履行完了日時
+    '配送ステータス'    // AI列: 配送の現在状況
+  ];
+  
+  // 連携管理フィールド（36-37列）
+  const syncHeaders = [
+    '同期エラーメッセージ', // AJ列: 同期時のエラーメッセージ
+    'データソース'       // AK列: データの取得元（Joom/Manual）
+  ];
+  
+  // 全ヘッダーを結合
+  const allHeaders = [
+    ...basicHeaders,
+    ...statusHeaders,
+    ...priceHeaders,
+    ...customerHeaders,
+    ...shippingHeaders,
+    ...deliveryHeaders,
+    ...syncHeaders
   ];
   
   // ヘッダーを設定
-  salesSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  salesSheet.getRange(1, 1, 1, allHeaders.length).setValues([allHeaders]);
   
   // ヘッダーの書式設定
-  const headerRange = salesSheet.getRange(1, 1, 1, headers.length);
-  headerRange.setBackground('#34a853');
+  const headerRange = salesSheet.getRange(1, 1, 1, allHeaders.length);
+  headerRange.setBackground('#1e7e34');  // より濃い緑色に変更
   headerRange.setFontColor('#ffffff');
   headerRange.setFontWeight('bold');
   headerRange.setHorizontalAlignment('center');
   
-  // 列幅の自動調整
-  salesSheet.autoResizeColumns(1, headers.length);
+  // セクション別の色分け
+  const sectionColors = [
+    { start: 1, end: 12, color: '#c8e6c9' },    // 基本情報（より濃い緑系）
+    { start: 13, end: 15, color: '#ffe0b2' },   // 注文ステータス（より濃いオレンジ系）
+    { start: 16, end: 19, color: '#bbdefb' },   // 価格詳細（より濃い青系）
+    { start: 20, end: 24, color: '#e1bee7' },   // 顧客情報（より濃い紫系）
+    { start: 25, end: 30, color: '#b2dfdb' },   // 配送情報（より濃いティール系）
+    { start: 31, end: 35, color: '#f8bbd9' },   // 出荷・配送（より濃いピンク系）
+    { start: 36, end: 37, color: '#dcedc8' }    // 連携管理（より濃いライトグリーン系）
+  ];
+  
+  sectionColors.forEach(section => {
+    const range = salesSheet.getRange(1, section.start, 1, section.end - section.start + 1);
+    range.setBackground(section.color);
+  });
+  
+  // 列幅の設定
+  const columnWidths = [
+    120, 100, 120, 200, 100, 120, 60, 100, 100, 80, 100, 150,  // 基本情報（1-12列）
+    120, 120, 150,  // 注文ステータス（13-15列）
+    80, 80, 80, 100,  // 価格詳細（16-19列）
+    120, 200, 120, 80, 100,  // 顧客情報（20-24列）
+    80, 100, 120, 200, 100, 200,  // 配送情報（25-30列）
+    120, 100, 120, 120, 120,  // 出荷・配送（31-35列）
+    200, 100  // 連携管理（36-37列）
+  ];
+  
+  columnWidths.forEach((width, index) => {
+    salesSheet.setColumnWidth(index + 1, width);
+  });
   
   // サンプルデータを追加
   addSampleSalesData(salesSheet);

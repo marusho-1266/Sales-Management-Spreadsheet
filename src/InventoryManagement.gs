@@ -203,11 +203,11 @@ function addNotesColumnToExistingSheet() {
  */
 function addSampleData(sheet) {
   const sampleData = [
-    [1, 'iPhone 15 Pro 128GB', 'IPH15P-128', 'B0CHX1W1XY', 'Amazon', 'https://amazon.co.jp/dp/B0CHX1W1XY', 120000, 150000, 187, '最新のiPhone 15 Pro 128GBモデル。A17 Proチップ搭載で高性能。', 'https://via.placeholder.com/500x500.jpg', 'JPY', 0, 1, '在庫あり', '', '2025-09-27 00:00:00', ''],
-    [2, 'MacBook Air M2 13インチ', 'MBA-M2-13', 'B0B3C2Q5XK', '楽天', 'https://item.rakuten.co.jp/example/macbook-air-m2', 140000, 180000, 1240, 'MacBook Air M2 13インチ。M2チップで高速処理。軽量設計。', 'https://example.com/images/macbook-air-m2.jpg', 'JPY', 0, 1, '在庫あり', '', '2025-09-27 00:00:00', ''],
-    [3, 'AirPods Pro 第2世代', 'APP-2ND', 'B0BDJDRJ9T', 'Yahooショッピング', 'https://shopping.yahoo.co.jp/products/airpods-pro-2nd', 25000, 35000, 56, 'AirPods Pro 第2世代。ノイズキャンセリング機能搭載。', 'https://example.com/images/airpods-pro-2nd.jpg', 'JPY', 0, 0, '売り切れ', '', '2025-09-27 00:00:00', ''],
-    [4, 'iPad Air 第5世代', 'IPAD-AIR-5', 'B09V4HCN9V', 'メルカリ', 'https://mercari.com/items/m123456789', 60000, 80000, 461, 'iPad Air 第5世代。M1チップ搭載で高性能タブレット。', 'https://example.com/images/ipad-air-5.jpg', 'JPY', 0, 1, '在庫あり', '', '2025-09-27 00:00:00', ''],
-    [5, 'Apple Watch Series 9', 'AWS-9', 'B0CHX1W1XZ', 'ヤフオク', 'https://page.auctions.yahoo.co.jp/jp/auction/example', 45000, 60000, 39, 'Apple Watch Series 9。健康管理とスマートウォッチ機能。', 'https://example.com/images/apple-watch-s9.jpg', 'JPY', 0, 1, '在庫あり', '', '2025-09-27 00:00:00', '']
+    [1, 'iPhone 15 Pro 128GB', 'IPH15P-128', 'B0CHX1W1XY', 'Amazon', 'https://amazon.co.jp/dp/B0CHX1W1XY', 120000, 150000, 187, '最新のiPhone 15 Pro 128GBモデル。A17 Proチップ搭載で高性能。', 'https://via.placeholder.com/500x500.jpg', 'JPY', 0, 1, '在庫あり', '', '2025-09-27 00:00:00', '', ''],
+    [2, 'MacBook Air M2 13インチ', 'MBA-M2-13', 'B0B3C2Q5XK', '楽天', 'https://item.rakuten.co.jp/example/macbook-air-m2', 140000, 180000, 1240, 'MacBook Air M2 13インチ。M2チップで高速処理。軽量設計。', 'https://example.com/images/macbook-air-m2.jpg', 'JPY', 0, 1, '在庫あり', '', '2025-09-27 00:00:00', '', ''],
+    [3, 'AirPods Pro 第2世代', 'APP-2ND', 'B0BDJDRJ9T', 'Yahooショッピング', 'https://shopping.yahoo.co.jp/products/airpods-pro-2nd', 25000, 35000, 56, 'AirPods Pro 第2世代。ノイズキャンセリング機能搭載。', 'https://example.com/images/airpods-pro-2nd.jpg', 'JPY', 0, 0, '売り切れ', '', '2025-09-27 00:00:00', '', ''],
+    [4, 'iPad Air 第5世代', 'IPAD-AIR-5', 'B09V4HCN9V', 'メルカリ', 'https://mercari.com/items/m123456789', 60000, 80000, 461, 'iPad Air 第5世代。M1チップ搭載で高性能タブレット。', 'https://example.com/images/ipad-air-5.jpg', 'JPY', 0, 1, '在庫あり', '', '2025-09-27 00:00:00', '', ''],
+    [5, 'Apple Watch Series 9', 'AWS-9', 'B0CHX1W1XZ', 'ヤフオク', 'https://page.auctions.yahoo.co.jp/jp/auction/example', 45000, 60000, 39, 'Apple Watch Series 9。健康管理とスマートウォッチ機能。', 'https://example.com/images/apple-watch-s9.jpg', 'JPY', 0, 1, '在庫あり', '', '2025-09-27 00:00:00', '', '']
   ];
   
   const dataRange = sheet.getRange(2, 1, sampleData.length, sampleData[0].length);
@@ -510,6 +510,7 @@ function addDefaultSettings(sheet) {
   const currentTime = Utilities.formatDate(now, 'JST', 'yyyy-MM-dd HH:mm:ss');
   
   const defaultSettings = [
+    // 基本設定
     ['ストアID', 'STORE001', 'JoomのストアID（全商品共通）', currentTime],
     ['デフォルト通貨', 'JPY', 'デフォルトの通貨設定', currentTime],
     ['デフォルト配送価格', '0', 'デフォルトの配送価格（円）', currentTime],
@@ -517,7 +518,28 @@ function addDefaultSettings(sheet) {
     ['検索タグ', '', '商品検索用タグ（カンマ区切り）', currentTime],
     ['危険物種類', 'notdangerous', '配送時の危険物種類', currentTime],
     ['価格変動通知メールアドレス', '', '価格変動時の通知先メールアドレス', currentTime],
-    ['価格変動通知有効化', 'true', '価格変動通知機能の有効/無効', currentTime]
+    ['価格変動通知有効化', 'true', '価格変動通知機能の有効/無効', currentTime],
+    
+    // Joom注文連携認証情報
+    ['Joom Client ID', '', 'Joom API Client ID', currentTime],
+    ['Joom Client Secret', '', 'Joom API Client Secret', currentTime],
+    ['Joom Access Token', '', '現在のアクセストークン', currentTime],
+    ['Joom Refresh Token', '', 'リフレッシュトークン', currentTime],
+    ['Joom Token Expiry', '', 'トークンの有効期限', currentTime],
+    
+    // Joom注文連携API設定
+    ['Joom API Base URL', 'https://api-merchant.joom.com/api/v3', 'Joom API ベースURL', currentTime],
+    ['Joom サンドボックス使用', 'false', 'サンドボックス環境の使用フラグ', currentTime],
+    ['Joom 取得間隔（分）', '60', '注文データ取得間隔', currentTime],
+    ['Joom 最大取得件数', '100', '1回の取得で処理する最大件数', currentTime],
+    
+    // Joom注文連携通知設定
+    ['Joom エラー通知メール', '', 'エラー通知先メールアドレス', currentTime],
+    ['Joom 同期完了通知', 'true', '同期完了時の通知フラグ', currentTime],
+    ['Joom エラー通知', 'true', 'エラー発生時の通知フラグ', currentTime],
+    
+    // Joom注文連携時間管理設定
+    ['Joom 前回連携時間', '', '手動・定期同期の最後の連携実行日時（共通）', currentTime]
   ];
   
   const dataRange = sheet.getRange(2, 1, defaultSettings.length, defaultSettings[0].length);
@@ -542,7 +564,21 @@ function setupSettingsConditionalFormatting(sheet) {
     .setRanges([valueRange])
     .build();
   
-  const rules = [requiredRule];
+  // Joom注文連携設定項目のハイライト
+  const joomRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextContains('Joom')
+    .setBackground('#e3f2fd')
+    .setRanges([valueRange])
+    .build();
+  
+  // 前回連携時間設定項目のハイライト
+  const syncTimeRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextContains('前回連携時間')
+    .setBackground('#fff3e0')
+    .setRanges([valueRange])
+    .build();
+  
+  const rules = [requiredRule, joomRule, syncTimeRule];
   sheet.setConditionalFormatRules(rules);
 }
 
