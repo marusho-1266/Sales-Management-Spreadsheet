@@ -19,36 +19,71 @@ const COLUMN_INDEXES = {
     PURCHASE_PRICE: 7,       // G列: 仕入れ価格
     SELLING_PRICE: 8,        // H列: 販売価格
     WEIGHT: 9,               // I列: 重量
-    // Joom対応フィールド（I列とO列の間に挿入）
     DESCRIPTION: 10,         // J列: 商品説明
     MAIN_IMAGE_URL: 11,      // K列: メイン画像URL
     CURRENCY: 12,            // L列: 通貨
     SHIPPING_PRICE: 13,      // M列: 配送価格
     STOCK_QUANTITY: 14,      // N列: 在庫数量
-    // 既存フィールド（列番号がシフト）
     STOCK_STATUS: 15,        // O列: 在庫ステータス
     PROFIT: 16,              // P列: 利益
     LAST_UPDATED: 17,        // Q列: 最終更新日時
     NOTES: 18,               // R列: 備考・メモ
-    // Joom連携管理列
     JOOM_STATUS: 19,         // S列: Joom連携ステータス
     JOOM_LAST_EXPORT: 20     // T列: 最終出力日時
   },
   
-  // 売上管理シート
+  // 売上管理シート（Joom注文連携対応版）
   SALES: {
-    ORDER_ID: 1,             // A列: 注文ID
-    ORDER_DATE: 2,           // B列: 注文日
-    PRODUCT_ID: 3,           // C列: 商品ID
-    PRODUCT_NAME: 4,         // D列: 商品名
-    SKU: 5,                  // E列: SKU
-    ASIN: 6,                 // F列: ASIN
-    QUANTITY: 7,             // G列: 数量
-    SELLING_PRICE: 8,        // H列: 販売価格
-    PURCHASE_PRICE: 9,       // I列: 仕入れ価格
-    SHIPPING_COST: 10,       // J列: 送料
-    NET_PROFIT: 11,          // K列: 純利益
-    REGISTRATION_TIME: 12    // L列: 登録日時
+    // 基本情報フィールド（1-12列）
+    ORDER_ID: 1,             // A列: Joom注文ID（8文字英数字）
+    ORDER_DATE: 2,           // B列: 注文受付日
+    PRODUCT_ID: 3,           // C列: Joom製品SKU（在庫管理の商品IDと同一）
+    PRODUCT_NAME: 4,         // D列: 商品名称（在庫管理から取得）
+    SKU: 5,                  // E列: 商品管理コード（在庫管理から取得）
+    ASIN: 6,                 // F列: Amazon商品コード（在庫管理から取得）
+    QUANTITY: 7,             // G列: 注文数量
+    SELLING_PRICE: 8,        // H列: 実際の販売価格（円）
+    PURCHASE_PRICE: 9,       // I列: 仕入れ価格（円、在庫管理から取得）
+    SHIPPING_COST: 10,       // J列: 配送料（円）
+    NET_PROFIT: 11,          // K列: 手数料差し引き後利益（自動計算）
+    REGISTRATION_TIME: 12,   // L列: データ登録日時
+    
+    // 注文ステータス管理フィールド（13-15列）
+    ORDER_STATUS: 13,        // M列: Joom注文ステータス（approved/shipped等）
+    JOOM_SYNC_STATUS: 14,    // N列: 連携状況（synced/error等）
+    LAST_SYNC_TIME: 15,      // O列: 最後に同期した日時
+    
+    // 価格詳細管理フィールド（16-19列）
+    COMMISSION: 16,          // P列: Joom手数料（円）
+    VAT: 17,                 // Q列: VAT金額（円）
+    REFUND_AMOUNT: 18,       // R列: 返金された金額（円）
+    CUSTOMER_GMV: 19,        // S列: 購入者の総商品価値（円）
+    
+    // 顧客情報フィールド（20-24列）
+    CUSTOMER_NAME: 20,       // T列: 注文者の氏名
+    CUSTOMER_EMAIL: 21,      // U列: 注文者のメールアドレス
+    CUSTOMER_PHONE: 22,      // V列: 注文者の電話番号
+    CUSTOMER_COUNTRY: 23,    // W列: 顧客の国コード
+    CUSTOMER_PREFECTURE: 24, // X列: 顧客の都道府県
+    
+    // 配送情報フィールド（25-30列）
+    SHIPPING_COUNTRY: 25,    // Y列: 配送先の国コード
+    SHIPPING_PREFECTURE: 26, // Z列: 配送先の都道府県
+    SHIPPING_CITY: 27,       // AA列: 配送先の市区町村
+    SHIPPING_ADDRESS: 28,    // AB列: 配送先の住所
+    SHIPPING_POSTAL_CODE: 29, // AC列: 配送先の郵便番号
+    SHIPPING_FULL_ADDRESS: 30, // AD列: 配送先住所の完全版文字列
+    
+    // 出荷・配送管理フィールド（31-35列）
+    TRACKING_NUMBER: 31,     // AE列: 配送追跡番号
+    SHIPPING_CARRIER: 32,    // AF列: 配送を担当する業者
+    SHIP_DATE: 33,           // AG列: 実際の出荷日時
+    FULFILLMENT_DATE: 34,    // AH列: 注文履行完了日時
+    DELIVERY_STATUS: 35,     // AI列: 配送の現在状況
+    
+    // 連携管理フィールド（36-37列）
+    SYNC_ERROR_MESSAGE: 36,  // AJ列: 同期時のエラーメッセージ
+    DATA_SOURCE: 37          // AK列: データの取得元（Joom/Manual）
   },
   
   // 価格履歴シート（1商品1行形式）
@@ -117,7 +152,33 @@ const FORM_CONSTANTS = {
  */
 const JOOM_STATUS = {
   UNLINKED: '未連携',
-  LINKED: '連携済み'
+  LINKED: '連携済み',
+  SYNCED: '同期済み',
+  SYNC_ERROR: '同期エラー'
+};
+
+/**
+ * Joom注文ステータス定数
+ */
+const JOOM_ORDER_STATUS = {
+  PENDING: 'pending',
+  APPROVED: 'approved',
+  SHIPPED: 'shipped',
+  DELIVERED: 'delivered',
+  CANCELLED: 'cancelled',
+  RETURNED: 'returned'
+};
+
+/**
+ * Joom注文連携設定定数
+ */
+const JOOM_CONFIG = {
+  API_BASE_URL: 'https://api-merchant.joom.com/api/v3',
+  SANDBOX_API_BASE_URL: 'https://api-sandbox-merchant.joom.com/api/v3',
+  DEFAULT_CURRENCY: 'JPY',
+  DEFAULT_SYNC_INTERVAL: 60, // 分
+  DEFAULT_MAX_ITEMS: 100,
+  RATE_LIMIT_RPM: 2000
 };
 
 /**
@@ -172,7 +233,7 @@ const JOOM_CSV_CONFIG = {
   // デフォルト値
   DEFAULTS: {
     CURRENCY: 'JPY',
-    DANGEROUS_KIND: 'notdangerous',
+    DANGEROUS_KIND: '', // 空の値を使用（危険物でない場合）
     SHIPPING_PRICE: 0,
     WEIGHT_UNIT_CONVERSION: 1000 // g to kg
   },

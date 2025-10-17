@@ -426,14 +426,15 @@ function generateJoomCsv(productsData, includeRecommended) {
     JOOM_CSV_FIELDS.REQUIRED.PRICE,
     JOOM_CSV_FIELDS.REQUIRED.CURRENCY,
     JOOM_CSV_FIELDS.REQUIRED.INVENTORY,
-    JOOM_CSV_FIELDS.REQUIRED.SHIPPING_PRICE
+    JOOM_CSV_FIELDS.REQUIRED.SHIPPING_PRICE,
+    JOOM_CSV_FIELDS.RECOMMENDED.VARIANT_SKU,
+    JOOM_CSV_FIELDS.RECOMMENDED.DANGEROUS_KIND
   ];
   
   if (includeRecommended) {
     headers.push(
       JOOM_CSV_FIELDS.RECOMMENDED.BRAND,
       JOOM_CSV_FIELDS.RECOMMENDED.SEARCH_TAGS,
-      JOOM_CSV_FIELDS.RECOMMENDED.DANGEROUS_KIND,
       JOOM_CSV_FIELDS.RECOMMENDED.SUGGESTED_CATEGORY_ID
     );
   }
@@ -443,7 +444,8 @@ function generateJoomCsv(productsData, includeRecommended) {
   // データ行の生成
   productsData.forEach(product => {
     const storeId = getSetting('ストアID') || 'STORE001';
-    const dangerousKind = getSetting('危険物種類') || JOOM_CSV_CONFIG.DEFAULTS.DANGEROUS_KIND;
+    // Dangerous Kindは常に空の値を使用（危険物でない場合）
+    const dangerousKind = '';
     const categoryId = getSetting('カテゴリID') || '';
     const searchTags = getSetting('検索タグ') || '';
     
@@ -457,14 +459,15 @@ function generateJoomCsv(productsData, includeRecommended) {
       product.sellingPrice || 0,
       product.currency || JOOM_CSV_CONFIG.DEFAULTS.CURRENCY,
       product.stockQuantity || 0,
-      product.shippingPrice || JOOM_CSV_CONFIG.DEFAULTS.SHIPPING_PRICE
+      product.shippingPrice || JOOM_CSV_CONFIG.DEFAULTS.SHIPPING_PRICE,
+      generateVariantSku(product.productId),
+      dangerousKind || '' // Dangerous Kind (常に出力)
     ];
     
     if (includeRecommended) {
       row.push(
         '', // Brand
         searchTags, // Search Tags
-        dangerousKind, // Dangerous Kind
         categoryId // Suggested Category ID
       );
     }
@@ -494,6 +497,19 @@ function convertWeightToKg(weightInGrams) {
     return 0;
   }
   return (weightInGrams / JOOM_CSV_CONFIG.DEFAULTS.WEIGHT_UNIT_CONVERSION).toFixed(3);
+}
+
+/**
+ * Product SKUからVariant SKUを生成
+ * Product SKUに「-1」を付けた値を返す
+ * @param {string} productSku - Product SKU
+ * @returns {string} Variant SKU
+ */
+function generateVariantSku(productSku) {
+  if (!productSku) {
+    return '';
+  }
+  return `${productSku}-1`;
 }
 
 /**
@@ -990,6 +1006,195 @@ function testAllCsvParsers() {
   });
   
   console.log('\n=== 包括的なCSVパーサーテストが完了しました ===');
+}
+
+/**
+ * Variant SKU生成機能のテスト
+ */
+function testVariantSkuGeneration() {
+  console.log('=== Variant SKU生成機能のテストを開始します ===');
+  
+  const testCases = [
+    { input: 'SKU001', expected: 'SKU001-1', description: '通常のSKU' },
+    { input: 'PROD123', expected: 'PROD123-1', description: '英数字のSKU' },
+    { input: '', expected: '', description: '空のSKU' },
+    { input: null, expected: '', description: 'nullのSKU' },
+    { input: undefined, expected: '', description: 'undefinedのSKU' },
+    { input: 'TEST-ABC', expected: 'TEST-ABC-1', description: 'ハイフンを含むSKU' }
+  ];
+  
+  testCases.forEach((testCase, index) => {
+    console.log(`\n--- テストケース${index + 1}: ${testCase.description} ---`);
+    console.log(`入力: "${testCase.input}"`);
+    
+    const result = generateVariantSku(testCase.input);
+    console.log(`期待値: "${testCase.expected}"`);
+    console.log(`実際の結果: "${result}"`);
+    
+    if (result === testCase.expected) {
+      console.log('✅ テスト成功');
+    } else {
+      console.log('❌ テスト失敗');
+    }
+  });
+  
+  console.log('\n=== Variant SKU生成機能のテストが完了しました ===');
+}
+
+/**
+ * CSV出力機能のVariant SKU統合テスト
+ */
+function testCsvOutputWithVariantSku() {
+  console.log('=== CSV出力機能のVariant SKU統合テストを開始します ===');
+  
+  try {
+    // テスト用の商品データ
+    const testProducts = [
+      {
+        productId: 'TEST001',
+        productName: 'テスト商品1',
+        sku: 'TEST001',
+        description: 'テスト商品の説明1',
+        mainImageUrl: 'https://example.com/image1.jpg',
+        sellingPrice: 1000,
+        currency: 'JPY',
+        stockQuantity: 5,
+        shippingPrice: 0,
+        weight: 500,
+        joomStatus: '未連携'
+      },
+      {
+        productId: 'TEST002',
+        productName: 'テスト商品2',
+        sku: 'TEST002',
+        description: 'テスト商品の説明2',
+        mainImageUrl: 'https://example.com/image2.jpg',
+        sellingPrice: 2000,
+        currency: 'JPY',
+        stockQuantity: 3,
+        shippingPrice: 0,
+        weight: 300,
+        joomStatus: '未連携'
+      }
+    ];
+    
+    console.log('テスト商品データ:', testProducts);
+    
+    // CSV生成
+    const csvData = generateJoomCsv(testProducts, false);
+    console.log('\n生成されたCSVデータ:');
+    console.log(csvData);
+    
+    // CSVを解析してVariant SKUを確認
+    const csvLines = csvData.split('\n');
+    console.log('\nCSV行数:', csvLines.length);
+    
+    if (csvLines.length >= 2) {
+      console.log('\nヘッダー行:', csvLines[0]);
+      console.log('データ行1:', csvLines[1]);
+      console.log('データ行2:', csvLines[2]);
+      
+      // Variant SKUフィールドの位置を確認
+      const headers = csvLines[0].split(',');
+      const variantSkuIndex = headers.indexOf('Variant SKU');
+      console.log('\nVariant SKUフィールドの位置:', variantSkuIndex);
+      
+      if (variantSkuIndex !== -1) {
+        // 各データ行のVariant SKUを確認
+        for (let i = 1; i < csvLines.length; i++) {
+          const fields = csvLines[i].split(',');
+          if (fields[variantSkuIndex]) {
+            console.log(`データ行${i}のVariant SKU: "${fields[variantSkuIndex]}"`);
+          }
+        }
+      }
+    }
+    
+    console.log('\n✅ CSV出力機能のVariant SKU統合テストが完了しました');
+    
+  } catch (error) {
+    console.error('❌ テスト中にエラーが発生しました:', error);
+  }
+}
+
+/**
+ * Dangerous Kindフィールド修正のテスト
+ */
+function testDangerousKindFix() {
+  console.log('=== Dangerous Kindフィールド修正のテストを開始します ===');
+  
+  try {
+    // テスト用の商品データ
+    const testProducts = [
+      {
+        productId: 'TEST001',
+        productName: 'テスト商品1',
+        sku: 'TEST001',
+        description: 'テスト商品の説明1',
+        mainImageUrl: 'https://example.com/image1.jpg',
+        sellingPrice: 1000,
+        currency: 'JPY',
+        stockQuantity: 5,
+        shippingPrice: 0,
+        weight: 500,
+        joomStatus: '未連携'
+      }
+    ];
+    
+    console.log('テスト商品データ:', testProducts);
+    
+    // CSV生成（推奨フィールドなし）
+    const csvDataMinimal = generateJoomCsv(testProducts, false);
+    console.log('\n=== 推奨フィールドなしCSV ===');
+    console.log(csvDataMinimal);
+    
+    // CSV生成（推奨フィールドあり）
+    const csvDataRecommended = generateJoomCsv(testProducts, true);
+    console.log('\n=== 推奨フィールドありCSV ===');
+    console.log(csvDataRecommended);
+    
+    // CSVを解析してDangerous Kindフィールドを確認
+    const csvLines = csvDataMinimal.split('\n');
+    console.log('\nCSV行数:', csvLines.length);
+    
+    if (csvLines.length >= 2) {
+      console.log('\nヘッダー行:', csvLines[0]);
+      console.log('データ行1:', csvLines[1]);
+      
+      // Dangerous Kindフィールドの位置を確認
+      const headers = csvLines[0].split(',');
+      const dangerousKindIndexes = [];
+      headers.forEach((header, index) => {
+        if (header === 'Dangerous Kind') {
+          dangerousKindIndexes.push(index);
+        }
+      });
+      
+      console.log('\nDangerous Kindフィールドの位置:', dangerousKindIndexes);
+      
+      if (dangerousKindIndexes.length === 1) {
+        console.log('✅ Dangerous Kindフィールドが1つのみ存在します');
+        const fields = csvLines[1].split(',');
+        const dangerousKindValue = fields[dangerousKindIndexes[0]];
+        console.log(`Dangerous Kind値: "${dangerousKindValue}"`);
+        
+        if (dangerousKindValue === '' || dangerousKindValue === '""') {
+          console.log('✅ Dangerous Kindが空の値で正しく出力されています');
+        } else {
+          console.log(`⚠️ Dangerous Kind値: "${dangerousKindValue}"`);
+        }
+      } else if (dangerousKindIndexes.length === 0) {
+        console.log('❌ Dangerous Kindフィールドが見つかりません');
+      } else {
+        console.log(`❌ Dangerous Kindフィールドが重複しています（${dangerousKindIndexes.length}個）`);
+      }
+    }
+    
+    console.log('\n✅ Dangerous Kindフィールド修正のテストが完了しました');
+    
+  } catch (error) {
+    console.error('❌ テスト中にエラーが発生しました:', error);
+  }
 }
 
 

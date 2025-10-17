@@ -5,24 +5,24 @@
  */
 
 /**
- * 全シートの初期化を実行
+ * 全シートの初期化を実行（Joom注文連携対応版）
  */
 function initializeAllSheets() {
-  console.log('在庫管理ツールのシート初期化を開始します...');
+  console.log('在庫管理ツールのシート初期化を開始します（Joom注文連携対応版）...');
   
   try {
     // 各シートを順次初期化
-    initializeInventorySheet();
-    initializeSalesSheet();
-    initializeSupplierMasterSheet();
-    initializePriceHistorySheet();
-    initializeSettingsSheet();
+    initializeInventorySheet();           // 在庫管理シート
+    initializeSalesSheet();              // 売上管理シート（Joom注文連携対応版）
+    initializeSupplierMasterSheet();     // 仕入れ元マスターシート
+    initializePriceHistorySheet();       // 価格履歴シート
+    initializeSettingsSheet();           // 設定シート（Joom注文連携設定統合版）
     
     // カスタムメニューを設定
     setupCustomMenu();
     
-    console.log('全シートの初期化が完了しました');
-    SpreadsheetApp.getUi().alert('シート初期化完了', '在庫管理ツールの全シートが正常に作成されました。', SpreadsheetApp.getUi().ButtonSet.OK);
+    console.log('全シートの初期化が完了しました（Joom注文連携対応版）');
+    SpreadsheetApp.getUi().alert('シート初期化完了', '在庫管理ツールの全シートが正常に作成されました（Joom注文連携対応版）。', SpreadsheetApp.getUi().ButtonSet.OK);
     
   } catch (error) {
     console.error('シート初期化中にエラーが発生しました:', error);
@@ -31,7 +31,7 @@ function initializeAllSheets() {
 }
 
 /**
- * カスタムメニューの設定
+ * カスタムメニューの設定（Joom注文連携対応版）
  */
 function setupCustomMenu() {
   const ui = SpreadsheetApp.getUi();
@@ -45,6 +45,8 @@ function setupCustomMenu() {
     .addSubMenu(
       ui.createMenu('📈 売上管理')
         .addItem('注文データ入力', 'showSalesInputFormMenu')
+        .addItem('Joom注文同期', 'showJoomOrderSyncMenu')
+        .addItem('注文ステータス管理', 'showOrderStatusManagement')
     )
     .addSubMenu(
       ui.createMenu('🔄 在庫チェック')
@@ -55,6 +57,11 @@ function setupCustomMenu() {
     .addSubMenu(
       ui.createMenu('📤 データ出力')
         .addItem('Joom用CSV出力', 'exportUnlinkedProductsCsv')
+    )
+    .addSubMenu(
+      ui.createMenu('🛠️ システム管理')
+        .addItem('全シート初期化', 'initializeAllSheets')
+        .addItem('データバックアップ', 'showDataBackupMenu')
     )
     .addSubMenu(
       ui.createMenu('⚙️ 設定')
@@ -72,8 +79,28 @@ function setupCustomMenu() {
       ui.createMenu('⚙️ システム設定')
         .addItem('通知設定', 'showNotificationSettings')
     )
-    .addSeparator()
-    .addItem('🔄 全シート初期化', 'initializeAllSheets')
+    .addSubMenu(
+      ui.createMenu('🔗 JoomAPI設定')
+        .addItem('🎫 トークン取得', 'acquireJoomToken')
+        .addItem('📊 トークン取得状況', 'checkTokenAcquisitionStatus')
+        .addItem('🔑 トークンステータス確認', 'showJoomTokenStatus')
+        .addItem('🔄 トークンリフレッシュ', 'showJoomTokenRefreshMenu')
+        .addItem('🗑️ トークンリセット', 'resetJoomTokens')
+        .addSeparator()
+        .addItem('⏰ 自動同期設定', 'showSyncTriggerSettings')
+        .addItem('📊 同期状況確認', 'showSyncStatus')
+    )
+    .addSubMenu(
+      ui.createMenu('📋 Joom注文取得')
+        .addItem('🔄 最新注文を取得', 'fetchLatestJoomOrders')
+        .addItem('📅 日時範囲で取得', 'fetchJoomOrdersByDateMenu')
+        .addItem('🔍 特定注文を取得', 'fetchSpecificJoomOrder')
+        .addItem('📊 取得状況確認', 'checkOrderFetchStatus')
+        .addSeparator()
+        .addItem('🐛 デバッグ: 最新注文データ表示', 'debugShowLatestOrdersRawData')
+        .addItem('🐛 デバッグ: 特定注文データ表示', 'debugShowSpecificOrderRawData')
+        .addItem('🐛 デバッグ: 日時範囲データ表示', 'debugShowDateRangeOrdersRawData')
+    )
     .addToUi();
 }
 
@@ -283,6 +310,36 @@ function showSettingsUpdateForm() {
       ui.alert('エラー', 'ストアIDが入力されていません。', ui.ButtonSet.OK);
     }
   }
+}
+
+
+
+/**
+ * 新規メニュー関数の追加
+ */
+
+/**
+ * Joom注文同期メニューの表示
+ */
+function showJoomOrderSyncMenu() {
+  const ui = SpreadsheetApp.getUi();
+  ui.alert('Joom注文同期', 'Joom注文同期機能は今後実装予定です。', ui.ButtonSet.OK);
+}
+
+/**
+ * 注文ステータス管理メニューの表示
+ */
+function showOrderStatusManagement() {
+  const ui = SpreadsheetApp.getUi();
+  ui.alert('注文ステータス管理', '注文ステータス管理機能は今後実装予定です。', ui.ButtonSet.OK);
+}
+
+/**
+ * データバックアップメニューの表示
+ */
+function showDataBackupMenu() {
+  const ui = SpreadsheetApp.getUi();
+  ui.alert('データバックアップ', 'データバックアップ機能は今後実装予定です。', ui.ButtonSet.OK);
 }
 
 
