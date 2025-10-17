@@ -101,8 +101,6 @@ function setupCustomMenu() {
         .addItem('🐛 デバッグ: 特定注文データ表示', 'debugShowSpecificOrderRawData')
         .addItem('🐛 デバッグ: 日時範囲データ表示', 'debugShowDateRangeOrdersRawData')
     )
-    .addSeparator()
-    .addItem('🔄 全シート初期化', 'initializeAllSheets')
     .addToUi();
 }
 

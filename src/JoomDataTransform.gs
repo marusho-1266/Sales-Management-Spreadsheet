@@ -23,11 +23,28 @@ function transformJoomOrderToSalesRow(joomOrder) {
   try {
     console.log('注文データ変換開始:', joomOrder.id);
     
+    // priceInfoの存在チェックとデフォルト値設定
+    if (!joomOrder.priceInfo) {
+      console.warn(`注文 ${joomOrder.id} のpriceInfoが存在しません。デフォルト値を使用します。`);
+      joomOrder.priceInfo = {
+        sellingPrice: { value: 0, currency: joomOrder.currency || 'JPY' },
+        shippingCost: { value: 0, currency: joomOrder.currency || 'JPY' },
+        commission: { value: 0, currency: joomOrder.currency || 'JPY' },
+        vat: { value: 0, currency: joomOrder.currency || 'JPY' },
+        refundAmount: { value: 0, currency: joomOrder.currency || 'JPY' },
+        customerGmv: { value: 0, currency: joomOrder.currency || 'JPY' }
+      };
+    }
+    
     // 商品情報を在庫管理シートから取得
     const productInfo = getProductInfoFromInventory(joomOrder.product.sku);
     
-    // 日時の変換
-    const orderDate = convertRfc3339ToJstDate(joomOrder.orderTimestamp);
+    // 日時の変換（null-safe）
+    const orderDate = joomOrder.orderTimestamp ? 
+      (typeof convertRfc3339ToJstDate === 'function' ? 
+        convertRfc3339ToJstDate(joomOrder.orderTimestamp) : 
+        new Date(joomOrder.orderTimestamp)) : 
+      new Date();
     const registrationTime = new Date();
     
     // 価格情報の変換
@@ -88,8 +105,12 @@ function transformJoomOrderToSalesRow(joomOrder) {
       // 出荷・配送管理
       joomOrder.shipment?.trackingNumber || '', // AE列: 追跡番号
       joomOrder.shipment?.provider || '',       // AF列: 配送業者
-      convertRfc3339ToJstDateTime(joomOrder.shipment?.shippedTimestamp) || '', // AG列: 出荷日
-      convertRfc3339ToJstDateTime(joomOrder.shipment?.fulfilledTimestamp) || '', // AH列: 履行日
+      joomOrder.shipment?.shippedTimestamp && typeof convertRfc3339ToJstDateTime === 'function' ? 
+        convertRfc3339ToJstDateTime(joomOrder.shipment.shippedTimestamp) : 
+        (joomOrder.shipment?.shippedTimestamp ? new Date(joomOrder.shipment.shippedTimestamp) : ''), // AG列: 出荷日
+      joomOrder.shipment?.fulfilledTimestamp && typeof convertRfc3339ToJstDateTime === 'function' ? 
+        convertRfc3339ToJstDateTime(joomOrder.shipment.fulfilledTimestamp) : 
+        (joomOrder.shipment?.fulfilledTimestamp ? new Date(joomOrder.shipment.fulfilledTimestamp) : ''), // AH列: 履行日
       getDeliveryStatus(joomOrder.status),      // AI列: 配送状況
       
       // 連携管理
@@ -273,27 +294,111 @@ function getExchangeRate(fromCurrency, toCurrency) {
       const rate = getSetting(settingKey);
       
       if (rate && !isNaN(parseFloat(rate))) {
+        // 為替レートの最終更新日時をチェック
+        const lastUpdated = getSettingLastUpdated(settingKey);
+        if (lastUpdated) {
+          const rateAge = checkRateAge(lastUpdated);
+          if (rateAge.isStale) {
+            console.warn(`為替レート ${fromCurrency}/JPY が古い可能性があります。最終更新: ${lastUpdated}, 経過時間: ${rateAge.ageHours}時間`);
+          }
+        }
+        
         return parseFloat(rate);
       }
       
-      // デフォルトレート（よく使われる通貨のみ）
-      const defaultRates = {
-        'USD': 150.0,
-        'EUR': 160.0,
-        'GBP': 180.0,
-        'CNY': 20.0
-      };
-      
-      return defaultRates[fromCurrency] || 1;
+      // 通貨が見つからない場合はエラーを投げる
+      throw new Error(`為替レートが設定されていません: ${fromCurrency}/JPY`);
     }
     
     // その他の通貨変換は未対応
-    console.warn(`未対応の通貨変換: ${fromCurrency} → ${toCurrency}`);
-    return 1;
+    throw new Error(`未対応の通貨変換: ${fromCurrency} → ${toCurrency}`);
     
   } catch (error) {
     console.error('為替レート取得エラー:', error);
-    return 1;
+    // エラーの場合は0を返す（1ではなく）
+    return 0;
+  }
+}
+
+/**
+ * 設定の最終更新日時を取得
+ * @param {string} settingName - 設定名
+ * @returns {string|null} 最終更新日時
+ */
+function getSettingLastUpdated(settingName) {
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('設定');
+    if (!sheet) {
+      console.warn('設定シートが見つかりません');
+      return null;
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    const headerRow = data[0];
+    
+    // 設定名の列を探す
+    const settingNameIndex = headerRow.findIndex(header => header === '設定名');
+    if (settingNameIndex === -1) {
+      console.warn('設定名の列が見つかりません');
+      return null;
+    }
+    
+    // 最終更新日時の列を探す
+    const lastUpdatedIndex = headerRow.findIndex(header => header === '最終更新日時');
+    if (lastUpdatedIndex === -1) {
+      console.warn('最終更新日時の列が見つかりません');
+      return null;
+    }
+    
+    // 設定名に一致する行を探す
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][settingNameIndex] === settingName) {
+        return data[i][lastUpdatedIndex] || null;
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('設定最終更新日時取得エラー:', error);
+    return null;
+  }
+}
+
+/**
+ * 為替レートの年齢をチェック
+ * @param {string} lastUpdated - 最終更新日時
+ * @returns {object} 年齢情報
+ */
+function checkRateAge(lastUpdated) {
+  try {
+    const now = new Date();
+    const updatedDate = new Date(lastUpdated);
+    
+    if (isNaN(updatedDate.getTime())) {
+      return {
+        isStale: true,
+        ageHours: -1,
+        message: '無効な日時形式'
+      };
+    }
+    
+    const ageHours = (now.getTime() - updatedDate.getTime()) / (1000 * 60 * 60);
+    
+    // TTL設定（24時間）
+    const ttlHours = 24;
+    
+    return {
+      isStale: ageHours > ttlHours,
+      ageHours: Math.round(ageHours * 10) / 10,
+      message: ageHours > ttlHours ? `レートが古い（${Math.round(ageHours)}時間経過）` : 'レートは有効'
+    };
+  } catch (error) {
+    console.error('為替レート年齢チェックエラー:', error);
+    return {
+      isStale: true,
+      ageHours: -1,
+      message: 'チェックエラー'
+    };
   }
 }
 
@@ -618,12 +723,14 @@ function batchTransformAndInsertOrders(joomOrders) {
     
     const salesRows = [];
     const errors = [];
+    const successfulOrders = [];
     
     // 各注文を変換
     joomOrders.forEach((order, index) => {
       try {
         const salesRow = transformJoomOrderToSalesRow(order);
         salesRows.push(salesRow);
+        successfulOrders.push(order);
       } catch (error) {
         console.error(`注文変換エラー [${index + 1}/${joomOrders.length}]:`, error);
         errors.push({
@@ -639,9 +746,9 @@ function batchTransformAndInsertOrders(joomOrders) {
       insertedCount = insertOrdersToSalesSheet(salesRows);
     }
     
-    // 在庫管理シートを更新
-    if (insertedCount > 0) {
-      updateInventorySheet(joomOrders);
+    // 在庫管理シートを更新（成功した注文のみ）
+    if (insertedCount > 0 && successfulOrders.length > 0) {
+      updateInventorySheet(successfulOrders);
     }
     
     const result = {

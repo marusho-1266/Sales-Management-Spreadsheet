@@ -520,13 +520,13 @@ function addDefaultSettings(sheet) {
     ['価格変動通知メールアドレス', '', '価格変動時の通知先メールアドレス', currentTime],
     ['価格変動通知有効化', 'true', '価格変動通知機能の有効/無効', currentTime],
     
-          // Joom注文連携認証情報
-          ['Joom Client ID', '', 'Joom API Client ID', currentTime],
-          ['Joom Client Secret', '', 'Joom API Client Secret', currentTime],
-          ['Joom Redirect URI', 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/usercallback', 'OAuth認証用リダイレクトURI（GAS WebアプリURL）', currentTime],
-      ['Joom Access Token', '', '現在のアクセストークン', currentTime],
-      ['Joom Refresh Token', '', 'リフレッシュトークン', currentTime],
-      ['Joom Token Expiry', '', 'トークンの有効期限', currentTime],
+    // Joom注文連携認証情報
+    ['Joom Client ID', '', 'Joom API Client ID', currentTime],
+    ['Joom Client Secret', '', 'Joom API Client Secret', currentTime],
+    ['Joom Redirect URI', 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/usercallback', 'OAuth認証用リダイレクトURI（GAS WebアプリURL）', currentTime],
+    ['Joom Access Token', '', '現在のアクセストークン', currentTime],
+    ['Joom Refresh Token', '', 'リフレッシュトークン', currentTime],
+    ['Joom Token Expiry', '', 'トークンの有効期限', currentTime],
       
       // 為替レート設定
       ['為替レート USD/JPY', '150.0', '米ドル→円の為替レート', currentTime],
@@ -566,6 +566,8 @@ function addDefaultSettings(sheet) {
 function setupSettingsConditionalFormatting(sheet) {
   // 設定値列の書式設定
   const valueRange = sheet.getRange('B:B');
+  // 設定名列の書式設定
+  const settingKeyRange = sheet.getRange('A:A');
   
   // 必須項目のハイライト（ストアID、デフォルト通貨）
   const requiredRule = SpreadsheetApp.newConditionalFormatRule()
@@ -578,14 +580,14 @@ function setupSettingsConditionalFormatting(sheet) {
   const joomRule = SpreadsheetApp.newConditionalFormatRule()
     .whenTextContains('Joom')
     .setBackground('#e3f2fd')
-    .setRanges([valueRange])
+    .setRanges([settingKeyRange])
     .build();
   
   // 前回連携時間設定項目のハイライト
   const syncTimeRule = SpreadsheetApp.newConditionalFormatRule()
     .whenTextContains('前回連携時間')
     .setBackground('#fff3e0')
-    .setRanges([valueRange])
+    .setRanges([settingKeyRange])
     .build();
   
   const rules = [requiredRule, joomRule, syncTimeRule];

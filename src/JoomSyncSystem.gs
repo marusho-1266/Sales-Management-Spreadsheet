@@ -22,8 +22,9 @@
 function manualImmediateSync() {
   console.log('=== 手動即時処理開始 ===');
   
+  let startTime = new Date();
+  
   try {
-    const startTime = new Date();
     
     // トークンの有効性確認
     if (!ensureValidToken()) {
@@ -67,10 +68,15 @@ function manualImmediateSync() {
     
   } catch (error) {
     console.error('手動即時処理エラー:', error);
+    
+    // 処理時間の計算（startTimeが未定義の場合は0）
+    const endTime = new Date();
+    const duration = startTime ? (endTime.getTime() - startTime.getTime()) / 1000 : 0;
+    
     return {
       success: false,
-      error: error.message,
-      duration: (new Date().getTime() - startTime.getTime()) / 1000
+      error: error?.message || String(error),
+      duration: duration
     };
   }
 }
@@ -88,8 +94,9 @@ function manualImmediateSync() {
 function hourlyScheduledSync() {
   console.log('=== 定期処理（1時間間隔）開始 ===');
   
+  let startTime = new Date();
+  
   try {
-    const startTime = new Date();
     
     // トークンの有効性確認
     if (!ensureValidToken()) {
@@ -167,26 +174,30 @@ function hourlyScheduledSync() {
   } catch (error) {
     console.error('定期処理エラー:', error);
     
+    // 処理時間の計算（startTimeが未定義の場合は0）
+    const endTime = new Date();
+    const duration = startTime ? (endTime.getTime() - startTime.getTime()) / 1000 : 0;
+    
     // エラー履歴を記録
     recordSyncHistory({
       syncType: '定期処理',
       fetched: 0,
       inserted: 0,
       failed: 0,
-      duration: (new Date().getTime() - startTime.getTime()) / 1000,
+      duration: duration,
       status: 'error',
-      message: error.message
+      message: error?.message || String(error)
     });
     
     // エラー通知送信
     sendErrorNotification({
       syncType: '定期処理',
-      error: error.message
+      error: error?.message || String(error)
     });
     
     return {
       success: false,
-      error: error.message
+      error: error?.message || String(error)
     };
   }
 }
@@ -550,22 +561,20 @@ function recordSyncHistory(syncInfo) {
       return;
     }
     
-    // 履歴エリアを探す（設定シートの下部に追加）
-    const lastRow = settingsSheet.getLastRow();
-    
-    // 履歴ヘッダーが存在しない場合は作成
-    const headerRow = lastRow + 2;
+    // 既存のヘッダー行を検索
     const headers = ['同期日時', '同期タイプ', '取得件数', '登録件数', '失敗件数', '処理時間(秒)', 'ステータス', 'メッセージ'];
+    let headerRow = findSyncHistoryHeaderRow(settingsSheet);
     
-    // ヘッダーが存在するか確認
-    const existingHeaders = settingsSheet.getRange(headerRow, 1, 1, headers.length).getValues()[0];
-    if (existingHeaders[0] !== '同期日時') {
-      // ヘッダーを作成
+    if (headerRow === -1) {
+      // ヘッダーが存在しない場合は作成
+      const lastRow = settingsSheet.getLastRow();
+      headerRow = lastRow + 1;
       settingsSheet.getRange(headerRow, 1, 1, headers.length).setValues([headers]);
       settingsSheet.getRange(headerRow, 1, 1, headers.length).setFontWeight('bold');
+      console.log('同期履歴ヘッダーを作成しました:', headerRow);
     }
     
-    // 履歴データを追加
+    // 履歴データを追加（ヘッダーの直後）
     const historyRow = [
       new Date(),
       syncInfo.syncType || '',
@@ -577,7 +586,7 @@ function recordSyncHistory(syncInfo) {
       syncInfo.message || ''
     ];
     
-    const dataRow = settingsSheet.getLastRow() + 1;
+    const dataRow = headerRow + 1;
     settingsSheet.getRange(dataRow, 1, 1, historyRow.length).setValues([historyRow]);
     
     // 日時列のフォーマット
@@ -587,6 +596,29 @@ function recordSyncHistory(syncInfo) {
     
   } catch (error) {
     console.error('同期履歴記録エラー:', error);
+  }
+}
+
+/**
+ * 同期履歴ヘッダー行を検索
+ * @param {Sheet} sheet - 検索対象のシート
+ * @returns {number} ヘッダー行番号（見つからない場合は-1）
+ */
+function findSyncHistoryHeaderRow(sheet) {
+  try {
+    const data = sheet.getDataRange().getValues();
+    
+    // 列Aで「同期日時」を検索
+    for (let i = 0; i < data.length; i++) {
+      if (data[i][0] === '同期日時') {
+        return i + 1; // 1ベースの行番号に変換
+      }
+    }
+    
+    return -1; // 見つからない場合
+  } catch (error) {
+    console.error('ヘッダー行検索エラー:', error);
+    return -1;
   }
 }
 
