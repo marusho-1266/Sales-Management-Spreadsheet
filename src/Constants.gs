@@ -233,7 +233,7 @@ const JOOM_CSV_CONFIG = {
   // デフォルト値
   DEFAULTS: {
     CURRENCY: 'JPY',
-    DANGEROUS_KIND: 'notdangerous',
+    DANGEROUS_KIND: '', // 空の値を使用（危険物でない場合）
     SHIPPING_PRICE: 0,
     WEIGHT_UNIT_CONVERSION: 1000 // g to kg
   },

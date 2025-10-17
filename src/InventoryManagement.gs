@@ -520,12 +520,22 @@ function addDefaultSettings(sheet) {
     ['価格変動通知メールアドレス', '', '価格変動時の通知先メールアドレス', currentTime],
     ['価格変動通知有効化', 'true', '価格変動通知機能の有効/無効', currentTime],
     
-    // Joom注文連携認証情報
-    ['Joom Client ID', '', 'Joom API Client ID', currentTime],
-    ['Joom Client Secret', '', 'Joom API Client Secret', currentTime],
-    ['Joom Access Token', '', '現在のアクセストークン', currentTime],
-    ['Joom Refresh Token', '', 'リフレッシュトークン', currentTime],
-    ['Joom Token Expiry', '', 'トークンの有効期限', currentTime],
+          // Joom注文連携認証情報
+          ['Joom Client ID', '', 'Joom API Client ID', currentTime],
+          ['Joom Client Secret', '', 'Joom API Client Secret', currentTime],
+          ['Joom Redirect URI', 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/usercallback', 'OAuth認証用リダイレクトURI（GAS WebアプリURL）', currentTime],
+      ['Joom Access Token', '', '現在のアクセストークン', currentTime],
+      ['Joom Refresh Token', '', 'リフレッシュトークン', currentTime],
+      ['Joom Token Expiry', '', 'トークンの有効期限', currentTime],
+      
+      // 為替レート設定
+      ['為替レート USD/JPY', '150.0', '米ドル→円の為替レート', currentTime],
+      ['為替レート EUR/JPY', '160.0', 'ユーロ→円の為替レート', currentTime],
+      ['為替レート GBP/JPY', '180.0', 'ポンド→円の為替レート', currentTime],
+      ['為替レート CNY/JPY', '20.0', '人民元→円の為替レート', currentTime],
+      
+      // Joom同期通知設定
+      ['Joom 通知有効化', 'false', '同期完了・エラー通知の有効化フラグ', currentTime],
     
     // Joom注文連携API設定
     ['Joom API Base URL', 'https://api-merchant.joom.com/api/v3', 'Joom API ベースURL', currentTime],

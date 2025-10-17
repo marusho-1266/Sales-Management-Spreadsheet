@@ -78,7 +78,28 @@ function setupCustomMenu() {
     .addSubMenu(
       ui.createMenu('⚙️ システム設定')
         .addItem('通知設定', 'showNotificationSettings')
-        .addItem('Joom連携設定', 'showJoomConfigMenu')
+    )
+    .addSubMenu(
+      ui.createMenu('🔗 JoomAPI設定')
+        .addItem('🎫 トークン取得', 'acquireJoomToken')
+        .addItem('📊 トークン取得状況', 'checkTokenAcquisitionStatus')
+        .addItem('🔑 トークンステータス確認', 'showJoomTokenStatus')
+        .addItem('🔄 トークンリフレッシュ', 'showJoomTokenRefreshMenu')
+        .addItem('🗑️ トークンリセット', 'resetJoomTokens')
+        .addSeparator()
+        .addItem('⏰ 自動同期設定', 'showSyncTriggerSettings')
+        .addItem('📊 同期状況確認', 'showSyncStatus')
+    )
+    .addSubMenu(
+      ui.createMenu('📋 Joom注文取得')
+        .addItem('🔄 最新注文を取得', 'fetchLatestJoomOrders')
+        .addItem('📅 日時範囲で取得', 'fetchJoomOrdersByDateMenu')
+        .addItem('🔍 特定注文を取得', 'fetchSpecificJoomOrder')
+        .addItem('📊 取得状況確認', 'checkOrderFetchStatus')
+        .addSeparator()
+        .addItem('🐛 デバッグ: 最新注文データ表示', 'debugShowLatestOrdersRawData')
+        .addItem('🐛 デバッグ: 特定注文データ表示', 'debugShowSpecificOrderRawData')
+        .addItem('🐛 デバッグ: 日時範囲データ表示', 'debugShowDateRangeOrdersRawData')
     )
     .addSeparator()
     .addItem('🔄 全シート初期化', 'initializeAllSheets')
@@ -323,13 +344,6 @@ function showDataBackupMenu() {
   ui.alert('データバックアップ', 'データバックアップ機能は今後実装予定です。', ui.ButtonSet.OK);
 }
 
-/**
- * Joom連携設定メニューの表示
- */
-function showJoomConfigMenu() {
-  const ui = SpreadsheetApp.getUi();
-  ui.alert('Joom連携設定', 'Joom連携設定機能は今後実装予定です。', ui.ButtonSet.OK);
-}
 
 /**
  * スプレッドシートが開かれた時の初期化
