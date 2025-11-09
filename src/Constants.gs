@@ -29,7 +29,12 @@ const COLUMN_INDEXES = {
     LAST_UPDATED: 17,        // Q列: 最終更新日時
     NOTES: 18,               // R列: 備考・メモ
     JOOM_STATUS: 19,         // S列: Joom連携ステータス
-    JOOM_LAST_EXPORT: 20     // T列: 最終出力日時
+    JOOM_LAST_EXPORT: 20,    // T列: 最終出力日時
+    HEIGHT_CM: 21,           // U列: 高さ(cm)
+    LENGTH_CM: 22,           // V列: 長さ(cm)
+    WIDTH_CM: 23,            // W列: 幅(cm)
+    VOLUMETRIC_FACTOR: 24,   // X列: 容積重量係数（オプション）
+    CATEGORY: 25             // Y列: 商品カテゴリー
   },
   
   // 売上管理シート（Joom注文連携対応版）
@@ -111,9 +116,71 @@ const COLUMN_INDEXES = {
 const SHEET_NAMES = {
   INVENTORY: '在庫管理',
   SALES: '売上管理',
+  PROFIT: '利益計算',
   SUPPLIER_MASTER: '仕入れ元マスター',
   PRICE_HISTORY: '価格履歴',
-  SETTINGS: '設定'
+  SETTINGS: '設定',
+  PEAK_SEASON_MASTER: '繁忙期料金マスタ'
+};
+
+/**
+ * 名前付き範囲定数
+ */
+const NAMED_RANGES = {
+  SHIPPING_METHODS: '送料マスタ_配送方法',
+  SHIPPING_SURCHARGE: '送料マスタ_サーチャージ',
+  SHIPPING_VOLUME_FACTOR: '送料マスタ_容積重量係数',
+  PEAK_SEASON_METHODS: '繁忙期料金_配送方法',
+  PEAK_SEASON_REGIONS: '繁忙期料金_地域',
+  PEAK_SEASON_AMOUNT: '繁忙期料金_料金'
+};
+
+/**
+ * 利益計算シートの主セル（A1表記）
+ */
+const PROFIT_CELLS = {
+  // 入力
+  SELLING_PRICE: 'B12',
+  QUANTITY: 'E12',
+  PURCHASE_PRICE: 'B13',
+  DISCOUNT_RATE: 'E13',
+  DISCOUNT_POINTS: 'B14',
+  WEIGHT_GRAM: 'B15',
+  SHIPPING_METHOD: 'E15',
+  REGION: 'B16',
+  JOOM_FEE_RATE: 'B17',
+  REFUND_AMOUNT: 'B18',
+  HEIGHT_CM: 'B21',
+  LENGTH_CM: 'D21',
+  WIDTH_CM: 'B22',
+  CATEGORY: 'B19',
+
+  // 出力/計算
+  COST_RESULT: 'E14',
+  SHIPPING_COST: 'E16',
+  JOOM_FEE_YEN: 'E17',
+  SHIPPING_SURCHARGE: 'E18',
+  PEAK_SEASON_FEE: 'E19',
+  VOLUMETRIC_WEIGHT: 'D22',
+  FINAL_WEIGHT: 'B23',
+  WEIGHT_DIFFERENCE: 'D23',
+  PROFIT_YEN: 'B8',
+  PROFIT_RATE: 'B9',
+  PROFIT_YEN_REFUND: 'B10',
+  PROFIT_RATE_REFUND: 'B11',
+
+  // 配送方法選択関連
+  TARGET_REGION: 'B27',
+  RECOMMENDED_METHOD: 'B28',
+  AVAILABLE_METHODS: 'B29',
+  DDP_WARNING: 'B30',
+  
+  // 為替レート管理関連
+  EXCHANGE_RATE_MANUAL_TOGGLE: 'B32',
+  EXCHANGE_RATE_MANUAL_VALUE: 'B33',
+  EXCHANGE_RATE_AUTO_VALUE: 'B34',
+  EXCHANGE_RATE_FINAL_VALUE: 'B35',
+  USD_CONVERTED_PRICE: 'B36'
 };
 
 /**

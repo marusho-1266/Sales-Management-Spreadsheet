@@ -11,6 +11,7 @@ function showProductInputForm() {
   const htmlTemplate = HtmlService.createTemplate(getProductInputFormHtml());
   htmlTemplate.nextProductId = getNextProductId();
   htmlTemplate.supplierData = getSupplierData();
+  htmlTemplate.categoryData = getCategoryData();
   const htmlOutput = htmlTemplate.evaluate()
     .setWidth(800)
     .setHeight(600)
@@ -37,6 +38,12 @@ function saveNewProduct(formData) {
     if (!headers.includes('備考・メモ')) {
       console.log('備考列が存在しないため、追加します');
       addNotesColumnToExistingSheet();
+    }
+    
+    // カテゴリー列が存在するかチェックし、存在しない場合は追加
+    if (!headers.includes('商品カテゴリー')) {
+      console.log('カテゴリー列が存在しないため、追加します');
+      addCategoryColumnToExistingSheet();
     }
     
     // 現在の日時を取得
@@ -68,7 +75,17 @@ function saveNewProduct(formData) {
       formData.stockStatus,         // 在庫ステータス
       profit,                       // 利益（計算値）
       timestamp,                    // 最終更新日時
-      formData.notes || ''          // 備考・メモ
+      formData.notes || '',         // 備考・メモ
+      // Joom連携管理列
+      '未連携',                      // Joom連携ステータス
+      '',                           // 最終出力日時
+      // 容積重量計算用寸法フィールド
+      formData.heightCm || 0,       // 高さ(cm)
+      formData.lengthCm || 0,       // 長さ(cm)
+      formData.widthCm || 0,        // 幅(cm)
+      formData.volumetricFactor || 6000,  // 容積重量係数
+      // 利益計算用カテゴリーフィールド
+      formData.category || ''        // 商品カテゴリー
     ];
     
     // 在庫管理シートに新しい行を追加
@@ -110,6 +127,54 @@ function saveNewProduct(formData) {
       success: false,
       message: '商品の保存中にエラーが発生しました: ' + error.message
     };
+  }
+}
+
+/**
+ * カテゴリー一覧を取得（関税率マスタから）
+ */
+function getCategoryData() {
+  try {
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const dutyMaster = spreadsheet.getSheetByName('関税率マスタ');
+    
+    if (!dutyMaster) {
+      console.warn('関税率マスタシートが見つかりません');
+      // デフォルトのカテゴリーリストを返す
+      return ['一般', '家電', 'アパレル', '雑貨', 'ホビー'];
+    }
+    
+    const lastRow = dutyMaster.getLastRow();
+    if (lastRow <= 1) {
+      console.warn('関税率マスタシートにデータがありません');
+      // デフォルトのカテゴリーリストを返す
+      return ['一般', '家電', 'アパレル', '雑貨', 'ホビー'];
+    }
+    
+    // カテゴリー名を取得（B列、2行目以降）
+    const categoryRange = dutyMaster.getRange(2, 2, lastRow - 1, 1);
+    const categories = categoryRange.getValues();
+    
+    // 空の値を除外してカテゴリーリストを作成
+    const categoryList = [];
+    for (let i = 0; i < categories.length; i++) {
+      const category = categories[i][0];
+      if (category && category.toString().trim() !== '') {
+        categoryList.push(category.toString().trim());
+      }
+    }
+    
+    // カテゴリーが存在しない場合はデフォルトリストを返す
+    if (categoryList.length === 0) {
+      return ['一般', '家電', 'アパレル', '雑貨', 'ホビー'];
+    }
+    
+    return categoryList;
+    
+  } catch (error) {
+    console.error('カテゴリーデータ取得エラー:', error);
+    // エラー時はデフォルトのカテゴリーリストを返す
+    return ['一般', '家電', 'アパレル', '雑貨', 'ホビー'];
   }
 }
 
@@ -580,6 +645,36 @@ function getProductInputFormHtml() {
           </div>
         </div>
         
+        <!-- 容積重量計算用寸法セクション -->
+        <div class="section-title">📏 容積重量計算用寸法</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="heightCm">高さ (cm)</label>
+            <input type="number" id="heightCm" name="heightCm" placeholder="10" min="0" step="0.1">
+            <div class="error-message" id="heightCmError">高さを入力してください（cm）</div>
+          </div>
+          
+          <div class="form-group">
+            <label for="lengthCm">長さ (cm)</label>
+            <input type="number" id="lengthCm" name="lengthCm" placeholder="20" min="0" step="0.1">
+            <div class="error-message" id="lengthCmError">長さを入力してください（cm）</div>
+          </div>
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label for="widthCm">幅 (cm)</label>
+            <input type="number" id="widthCm" name="widthCm" placeholder="15" min="0" step="0.1">
+            <div class="error-message" id="widthCmError">幅を入力してください（cm）</div>
+          </div>
+          
+          <div class="form-group">
+            <label for="volumetricFactor">容積重量係数</label>
+            <input type="number" id="volumetricFactor" name="volumetricFactor" placeholder="6000" min="1000" value="6000">
+            <div class="error-message" id="volumetricFactorError">容積重量係数を入力してください</div>
+          </div>
+        </div>
+        
         <!-- Joom対応フィールドセクション -->
         
         <div class="form-group full-width">
@@ -621,15 +716,28 @@ function getProductInputFormHtml() {
         <!-- 在庫情報セクション -->
         <div class="section-title">📦 在庫情報</div>
         
-        <div class="form-group">
-          <label for="stockStatus">在庫ステータス <span class="required">*</span></label>
-          <select id="stockStatus" name="stockStatus" required>
-            <option value="">在庫ステータスを選択してください</option>
-            <option value="在庫あり">在庫あり</option>
-            <option value="売り切れ">売り切れ</option>
-            <option value="予約受付中">予約受付中</option>
-          </select>
-          <div class="error-message" id="stockStatusError">在庫ステータスは必須です</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="stockStatus">在庫ステータス <span class="required">*</span></label>
+            <select id="stockStatus" name="stockStatus" required>
+              <option value="">在庫ステータスを選択してください</option>
+              <option value="在庫あり">在庫あり</option>
+              <option value="売り切れ">売り切れ</option>
+              <option value="予約受付中">予約受付中</option>
+            </select>
+            <div class="error-message" id="stockStatusError">在庫ステータスは必須です</div>
+          </div>
+          
+          <div class="form-group">
+            <label for="category">商品カテゴリー <span class="required">*</span></label>
+            <select id="category" name="category" required>
+              <option value="">カテゴリーを選択してください</option>
+              <? for (var i = 0; i < categoryData.length; i++) { ?>
+                <option value="<?= categoryData[i] ?>"><?= categoryData[i] ?></option>
+              <? } ?>
+            </select>
+            <div class="error-message" id="categoryError">商品カテゴリーは必須です</div>
+          </div>
         </div>
         
         <!-- 利益計算プレビュー -->
@@ -676,6 +784,19 @@ function getProductInputFormHtml() {
       } catch (e) {
         console.error('JSON解析エラー:', e);
         supplierData = [];
+      }
+    }
+    
+    // サーバーサイドから取得したカテゴリーデータ
+    var categoryData = <?= JSON.stringify(categoryData) ?>;
+    
+    // データが文字列の場合は解析する
+    if (typeof categoryData === 'string') {
+      try {
+        categoryData = JSON.parse(categoryData);
+      } catch (e) {
+        console.error('JSON解析エラー:', e);
+        categoryData = ['一般', '家電', 'アパレル', '雑貨', 'ホビー'];
       }
     }
     
@@ -855,8 +976,14 @@ function getProductInputFormHtml() {
           currency: document.getElementById('currency').value,
           shippingPrice: parseFloat(document.getElementById('shippingPrice').value) || 0,
           stockQuantity: parseInt(document.getElementById('stockQuantity').value) || 1,
+          // 容積重量計算用寸法フィールド
+          heightCm: parseFloat(document.getElementById('heightCm').value) || 0,
+          lengthCm: parseFloat(document.getElementById('lengthCm').value) || 0,
+          widthCm: parseFloat(document.getElementById('widthCm').value) || 0,
+          volumetricFactor: parseInt(document.getElementById('volumetricFactor').value) || 6000,
           // 既存フィールド
           stockStatus: document.getElementById('stockStatus').value,
+          category: document.getElementById('category').value,
           notes: document.getElementById('notes').value
         };
         
@@ -946,7 +1073,7 @@ function getProductInputFormHtml() {
       });
       
       // 必須項目のチェック（商品IDは自動生成のため除外）
-      var requiredFields = ['productName', 'supplier', 'purchasePrice', 'sellingPrice', 'weight', 'stockStatus'];
+      var requiredFields = ['productName', 'supplier', 'purchasePrice', 'sellingPrice', 'weight', 'stockStatus', 'category'];
       
       // 仕入れ元がAmazonでない場合のみURLを必須項目に追加
       var supplier = document.getElementById('supplier').value;
@@ -1045,8 +1172,12 @@ function testNotesFunctionality() {
       purchasePrice: 1000,
       sellingPrice: 1500,
       weight: 100,
+      heightCm: 7.6,
+      lengthCm: 14.7,
+      widthCm: 0.8,
+      volumetricFactor: 6000,
       stockStatus: '在庫あり',
-      notes: 'これは備考機能のテスト用商品です。備考・メモが正常に保存されることを確認します。'
+      notes: 'これは容積重量計算機能のテスト用商品です。寸法データが正常に保存され、利益計算シートで自動読み込みされることを確認します。'
     };
     
     // 商品を保存

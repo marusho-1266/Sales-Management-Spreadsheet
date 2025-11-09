@@ -59,7 +59,14 @@ function initializeInventorySheet() {
     '備考・メモ',
     // Joom連携管理列
     'Joom連携ステータス',
-    '最終出力日時'
+    '最終出力日時',
+    // 容積重量計算用寸法フィールド
+    '高さ(cm)',
+    '長さ(cm)',
+    '幅(cm)',
+    '容積重量係数',
+    // 利益計算用カテゴリーフィールド
+    '商品カテゴリー'
   ];
   
   // ヘッダーを設定
@@ -199,15 +206,63 @@ function addNotesColumnToExistingSheet() {
 }
 
 /**
+ * 既存の在庫管理シートにカテゴリー列を追加
+ */
+function addCategoryColumnToExistingSheet() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const inventorySheet = spreadsheet.getSheetByName(SHEET_NAMES.INVENTORY);
+  
+  if (!inventorySheet) {
+    console.log('在庫管理シートが見つかりません');
+    return;
+  }
+  
+  try {
+    // 現在のヘッダー行を取得
+    const headerRange = inventorySheet.getRange(1, 1, 1, inventorySheet.getLastColumn());
+    const headers = headerRange.getValues()[0];
+    
+    // カテゴリー列が既に存在するかチェック
+    if (headers.includes('商品カテゴリー')) {
+      console.log('カテゴリー列は既に存在します');
+      return;
+    }
+    
+    // カテゴリー列を追加（X列（容積重量係数）の後に挿入）
+    const categoryColumnIndex = COLUMN_INDEXES.INVENTORY.CATEGORY; // 25列目
+    inventorySheet.insertColumnAfter(COLUMN_INDEXES.INVENTORY.VOLUMETRIC_FACTOR); // X列の後に挿入
+    
+    // 新しいヘッダーを設定
+    inventorySheet.getRange(1, categoryColumnIndex).setValue('商品カテゴリー');
+    
+    // ヘッダーの書式設定
+    const categoryHeaderRange = inventorySheet.getRange(1, categoryColumnIndex);
+    categoryHeaderRange.setBackground('#4285f4');
+    categoryHeaderRange.setFontColor('#ffffff');
+    categoryHeaderRange.setFontWeight('bold');
+    categoryHeaderRange.setHorizontalAlignment('center');
+    
+    // 列幅を自動調整
+    inventorySheet.autoResizeColumn(categoryColumnIndex);
+    
+    console.log('カテゴリー列が正常に追加されました');
+    
+  } catch (error) {
+    console.error('カテゴリー列の追加中にエラーが発生しました:', error);
+    throw error;
+  }
+}
+
+/**
  * サンプルデータの追加
  */
 function addSampleData(sheet) {
   const sampleData = [
-    [1, 'iPhone 15 Pro 128GB', 'IPH15P-128', 'B0CHX1W1XY', 'Amazon', 'https://amazon.co.jp/dp/B0CHX1W1XY', 120000, 150000, 187, '最新のiPhone 15 Pro 128GBモデル。A17 Proチップ搭載で高性能。', 'https://via.placeholder.com/500x500.jpg', 'JPY', 0, 1, '在庫あり', '', '2025-09-27 00:00:00', '', ''],
-    [2, 'MacBook Air M2 13インチ', 'MBA-M2-13', 'B0B3C2Q5XK', '楽天', 'https://item.rakuten.co.jp/example/macbook-air-m2', 140000, 180000, 1240, 'MacBook Air M2 13インチ。M2チップで高速処理。軽量設計。', 'https://example.com/images/macbook-air-m2.jpg', 'JPY', 0, 1, '在庫あり', '', '2025-09-27 00:00:00', '', ''],
-    [3, 'AirPods Pro 第2世代', 'APP-2ND', 'B0BDJDRJ9T', 'Yahooショッピング', 'https://shopping.yahoo.co.jp/products/airpods-pro-2nd', 25000, 35000, 56, 'AirPods Pro 第2世代。ノイズキャンセリング機能搭載。', 'https://example.com/images/airpods-pro-2nd.jpg', 'JPY', 0, 0, '売り切れ', '', '2025-09-27 00:00:00', '', ''],
-    [4, 'iPad Air 第5世代', 'IPAD-AIR-5', 'B09V4HCN9V', 'メルカリ', 'https://mercari.com/items/m123456789', 60000, 80000, 461, 'iPad Air 第5世代。M1チップ搭載で高性能タブレット。', 'https://example.com/images/ipad-air-5.jpg', 'JPY', 0, 1, '在庫あり', '', '2025-09-27 00:00:00', '', ''],
-    [5, 'Apple Watch Series 9', 'AWS-9', 'B0CHX1W1XZ', 'ヤフオク', 'https://page.auctions.yahoo.co.jp/jp/auction/example', 45000, 60000, 39, 'Apple Watch Series 9。健康管理とスマートウォッチ機能。', 'https://example.com/images/apple-watch-s9.jpg', 'JPY', 0, 1, '在庫あり', '', '2025-09-27 00:00:00', '', '']
+    [1, 'iPhone 15 Pro 128GB', 'IPH15P-128', 'B0CHX1W1XY', 'Amazon', 'https://amazon.co.jp/dp/B0CHX1W1XY', 120000, 150000, 187, '最新のiPhone 15 Pro 128GBモデル。A17 Proチップ搭載で高性能。', 'https://via.placeholder.com/500x500.jpg', 'JPY', 0, 1, '在庫あり', 30000, '2025-09-27 00:00:00', '', '未連携', '', 7.6, 14.7, 0.8, 6000, '家電'],
+    [2, 'MacBook Air M2 13インチ', 'MBA-M2-13', 'B0B3C2Q5XK', '楽天', 'https://item.rakuten.co.jp/example/macbook-air-m2', 140000, 180000, 1240, 'MacBook Air M2 13インチ。M2チップで高速処理。軽量設計。', 'https://example.com/images/macbook-air-m2.jpg', 'JPY', 0, 1, '在庫あり', 40000, '2025-09-27 00:00:00', '', '未連携', '', 1.13, 30.4, 21.5, 6000, '家電'],
+    [3, 'AirPods Pro 第2世代', 'APP-2ND', 'B0BDJDRJ9T', 'Yahooショッピング', 'https://shopping.yahoo.co.jp/products/airpods-pro-2nd', 25000, 35000, 56, 'AirPods Pro 第2世代。ノイズキャンセリング機能搭載。', 'https://example.com/images/airpods-pro-2nd.jpg', 'JPY', 0, 0, '売り切れ', 10000, '2025-09-27 00:00:00', '', '未連携', '', 4.5, 6.0, 4.5, 6000, '家電'],
+    [4, 'iPad Air 第5世代', 'IPAD-AIR-5', 'B09V4HCN9V', 'メルカリ', 'https://mercari.com/items/m123456789', 60000, 80000, 461, 'iPad Air 第5世代。M1チップ搭載で高性能タブレット。', 'https://example.com/images/ipad-air-5.jpg', 'JPY', 0, 1, '在庫あり', 20000, '2025-09-27 00:00:00', '', '未連携', '', 0.6, 24.8, 17.8, 6000, '家電'],
+    [5, 'Apple Watch Series 9', 'AWS-9', 'B0CHX1W1XZ', 'ヤフオク', 'https://page.auctions.yahoo.co.jp/jp/auction/example', 45000, 60000, 39, 'Apple Watch Series 9。健康管理とスマートウォッチ機能。', 'https://example.com/images/apple-watch-s9.jpg', 'JPY', 0, 1, '在庫あり', 15000, '2025-09-27 00:00:00', '', '未連携', '', 1.0, 4.5, 3.8, 6000, '家電']
   ];
   
   const dataRange = sheet.getRange(2, 1, sampleData.length, sampleData[0].length);
@@ -221,6 +276,11 @@ function addSampleData(sheet) {
   sheet.getRange(2, 13, sampleData.length, 1).setNumberFormat('#,##0'); // 配送価格
   sheet.getRange(2, 14, sampleData.length, 1).setNumberFormat('0'); // 在庫数量
   sheet.getRange(2, 16, sampleData.length, 1).setNumberFormat('#,##0'); // 利益
+  // 寸法フィールドの書式設定
+  sheet.getRange(2, 21, sampleData.length, 1).setNumberFormat('0.0'); // 高さ(cm)
+  sheet.getRange(2, 22, sampleData.length, 1).setNumberFormat('0.0'); // 長さ(cm)
+  sheet.getRange(2, 23, sampleData.length, 1).setNumberFormat('0.0'); // 幅(cm)
+  sheet.getRange(2, 24, sampleData.length, 1).setNumberFormat('0'); // 容積重量係数
 }
 
 /**
