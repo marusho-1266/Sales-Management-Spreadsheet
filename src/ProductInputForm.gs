@@ -52,7 +52,7 @@ function saveNewProduct(formData) {
     
     // 利益計算（販売価格 - 仕入れ価格）
     // 商品の仕入れには手数料が発生しないため、手数料は考慮しない
-    const profit = formData.sellingPrice - formData.purchasePrice;
+    const profit = (formData.sellingPrice || 0) - formData.purchasePrice;
     
     // 新しい行のデータを準備（Joom対応フィールド含む）
     const newRowData = [
@@ -63,7 +63,7 @@ function saveNewProduct(formData) {
       formData.supplier,            // 仕入れ元
       formData.supplierUrl,         // 仕入れ元URL
       formData.purchasePrice,       // 仕入れ価格
-      formData.sellingPrice,        // 販売価格
+      formData.sellingPrice || 0,        // 販売価格
       formData.weight,              // 重量
       // Joom対応フィールド
       formData.description || '',   // 商品説明
@@ -627,9 +627,9 @@ function getProductInputFormHtml() {
           </div>
           
           <div class="form-group">
-            <label for="sellingPrice">販売価格 <span class="required">*</span></label>
-            <input type="number" id="sellingPrice" name="sellingPrice" placeholder="150000" min="0" required>
-            <div class="error-message" id="sellingPriceError">販売価格は必須です</div>
+            <label for="sellingPrice">販売価格</label>
+            <input type="number" id="sellingPrice" name="sellingPrice" placeholder="150000" min="0">
+            <div class="error-message" id="sellingPriceError">販売価格は仕入れ価格より高く設定してください</div>
           </div>
         </div>
         
@@ -870,13 +870,13 @@ function getProductInputFormHtml() {
     // 価格プレビューの更新
     function updatePricePreview() {
       var purchasePrice = parseFloat(document.getElementById('purchasePrice').value) || 0;
-      var sellingPrice = parseFloat(document.getElementById('sellingPrice').value) || 0;
+      var sellingPrice = document.getElementById('sellingPrice').value ? parseFloat(document.getElementById('sellingPrice').value) : null;
       
       // 利益計算（手数料は考慮しない）
-      var profit = sellingPrice - purchasePrice;
+      var profit = (sellingPrice || 0) - purchasePrice;
       
       // プレビューを表示
-      document.getElementById('previewSellingPrice').textContent = '¥' + sellingPrice.toLocaleString();
+      document.getElementById('previewSellingPrice').textContent = '¥' + (sellingPrice || 0).toLocaleString();
       document.getElementById('previewPurchasePrice').textContent = '¥' + purchasePrice.toLocaleString();
       document.getElementById('previewProfit').textContent = '¥' + Math.round(profit).toLocaleString();
       
@@ -889,7 +889,7 @@ function getProductInputFormHtml() {
       }
       
       // プレビューを表示
-      if (sellingPrice > 0 || purchasePrice > 0) {
+      if ((sellingPrice && sellingPrice > 0) || purchasePrice > 0) {
         document.getElementById('pricePreview').style.display = 'block';
       }
     }
@@ -968,7 +968,7 @@ function getProductInputFormHtml() {
           supplier: document.getElementById('supplier').value,
           supplierUrl: document.getElementById('supplierUrl').value,
           purchasePrice: parseFloat(document.getElementById('purchasePrice').value),
-          sellingPrice: parseFloat(document.getElementById('sellingPrice').value),
+          sellingPrice: document.getElementById('sellingPrice').value ? parseFloat(document.getElementById('sellingPrice').value) : null,
           weight: parseInt(document.getElementById('weight').value),
           // Joom対応フィールド
           description: document.getElementById('description').value,
@@ -1073,7 +1073,7 @@ function getProductInputFormHtml() {
       });
       
       // 必須項目のチェック（商品IDは自動生成のため除外）
-      var requiredFields = ['productName', 'supplier', 'purchasePrice', 'sellingPrice', 'weight', 'stockStatus', 'category'];
+      var requiredFields = ['productName', 'supplier', 'purchasePrice', 'weight', 'stockStatus', 'category'];
       
       // 仕入れ元がAmazonでない場合のみURLを必須項目に追加
       var supplier = document.getElementById('supplier').value;
@@ -1102,9 +1102,9 @@ function getProductInputFormHtml() {
       
       // 価格の妥当性チェック
       var purchasePrice = parseFloat(document.getElementById('purchasePrice').value);
-      var sellingPrice = parseFloat(document.getElementById('sellingPrice').value);
+      var sellingPrice = document.getElementById('sellingPrice').value ? parseFloat(document.getElementById('sellingPrice').value) : null;
       
-      if (sellingPrice <= purchasePrice) {
+      if (sellingPrice && sellingPrice <= purchasePrice) {
         document.getElementById('sellingPriceError').textContent = '販売価格は仕入れ価格より高く設定してください';
         document.getElementById('sellingPriceError').style.display = 'block';
         isValid = false;

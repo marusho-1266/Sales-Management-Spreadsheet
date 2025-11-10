@@ -1149,6 +1149,7 @@ function loadProductDataFromInventory(productId, showFeedback = false) {
       profitSheet.getRange('B6').setValue(productData[5] || '');  // 仕入れ元URL
       profitSheet.getRange('E6').setValue(productData[4] || '');  // 仕入れ元
       profitSheet.getRange('B13').setValue(productData[6] || 0);  // 仕入れ価格
+      profitSheet.getRange(PROFIT_CELLS.SELLING_PRICE).setValue(productData[7] || 0);  // 販売価格
       profitSheet.getRange('B15').setValue(productData[8] || 0);  // 重量
       
       // 容積重量計算用寸法データの設定
