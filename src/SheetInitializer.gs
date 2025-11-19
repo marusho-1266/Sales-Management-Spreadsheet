@@ -1153,14 +1153,14 @@ function loadProductDataFromInventory(productId, showFeedback = false) {
       profitSheet.getRange('B15').setValue(productData[8] || 0);  // 重量
       
       // 容積重量計算用寸法データの設定
-      // U: 高さ(cm), V: 長さ(cm), W: 幅(cm), X: 容積重量係数
-      profitSheet.getRange('B21').setValue(productData[20] || 0);  // 高さ(cm)
-      profitSheet.getRange('D21').setValue(productData[21] || 0);  // 長さ(cm)
-      profitSheet.getRange('B22').setValue(productData[22] || 0);  // 幅(cm)
+      // Y: 高さ(cm), Z: 長さ(cm), AA: 幅(cm), AB: 容積重量係数
+      profitSheet.getRange('B21').setValue(productData[COLUMN_INDEXES.INVENTORY.HEIGHT_CM - 1] || 0);  // 高さ(cm)
+      profitSheet.getRange('D21').setValue(productData[COLUMN_INDEXES.INVENTORY.LENGTH_CM - 1] || 0);  // 長さ(cm)
+      profitSheet.getRange('B22').setValue(productData[COLUMN_INDEXES.INVENTORY.WIDTH_CM - 1] || 0);  // 幅(cm)
       
       // 商品カテゴリーの設定
-      // Y: 商品カテゴリー（25列目、インデックス24）
-      profitSheet.getRange(PROFIT_CELLS.CATEGORY).setValue(productData[24] || '');  // 商品カテゴリー
+      // AD: 商品カテゴリー（30列目、インデックス29）
+      profitSheet.getRange(PROFIT_CELLS.CATEGORY).setValue(productData[COLUMN_INDEXES.INVENTORY.CATEGORY - 1] || '');  // 商品カテゴリー
       
       const message = `商品ID "${productId}" のデータを正常に読み込みました`;
       console.log(message);
@@ -1186,6 +1186,182 @@ function loadProductDataFromInventory(productId, showFeedback = false) {
 }
 
 /**
+ * 在庫管理シートに指定ヘッダーの列を確保し列番号を返す
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet
+ * @param {string} headerName
+ * @return {number} 列番号(1-based)
+ */
+function ensureInventoryColumn(sheet, headerName) {
+  const lastColumn = sheet.getLastColumn();
+  const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
+  const existingIndex = headers.indexOf(headerName);
+  if (existingIndex >= 0) {
+    return existingIndex + 1;
+  }
+  sheet.insertColumnAfter(lastColumn);
+  const newIndex = lastColumn + 1;
+  sheet.getRange(1, newIndex).setValue(headerName);
+  return newIndex;
+}
+
+/**
+ * 値を数値として取得し、必要に応じて空値を許容する
+ * @param {*} value
+ * @param {string} label
+ * @param {boolean} allowBlank
+ * @return {number}
+ */
+function getNumericValue(value, label, allowBlank) {
+  if (value === '' || value === null || value === undefined) {
+    if (allowBlank) {
+      return 0;
+    }
+    throw new Error(`${label}が未入力です。`);
+  }
+  const num = Number(value);
+  if (isNaN(num)) {
+    throw new Error(`${label}は数値で入力してください。現在の値: ${value}`);
+  }
+  return num;
+}
+
+/**
+ * 利益計算シートの利益関連データを在庫管理シートへ反映
+ */
+function syncProfitDataToInventory() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const profitSheet = ss.getSheetByName(SHEET_NAMES.PROFIT);
+    const inventorySheet = ss.getSheetByName(SHEET_NAMES.INVENTORY);
+
+    if (!profitSheet || !inventorySheet) {
+      SpreadsheetApp.getUi().alert('エラー', MESSAGES.ERROR.SHEET_NOT_FOUND, SpreadsheetApp.getUi().ButtonSet.OK);
+      return;
+    }
+
+    const productId = profitSheet.getRange('B2').getValue();
+    if (!productId) {
+      SpreadsheetApp.getUi().alert('エラー', '商品ID(B2)が未入力です。', SpreadsheetApp.getUi().ButtonSet.OK);
+      return;
+    }
+
+    const dataRange = inventorySheet.getDataRange();
+    const values = dataRange.getValues();
+    let targetRow = -1;
+    for (let i = 1; i < values.length; i++) {
+      if (values[i][0] === productId) {
+        targetRow = i + 1;
+        break;
+      }
+    }
+
+    if (targetRow === -1) {
+      SpreadsheetApp.getUi().alert('エラー', `商品ID "${productId}" が在庫管理シートに存在しません。`, SpreadsheetApp.getUi().ButtonSet.OK);
+      return;
+    }
+
+    const dataPoints = [
+      {
+        label: '販売価格',
+        rangeA1: PROFIT_CELLS.SELLING_PRICE,
+        columnIndex: COLUMN_INDEXES.INVENTORY.SELLING_PRICE,
+        allowBlank: false,
+        format: '#,##0'
+      },
+      {
+        label: '配送価格',
+        rangeA1: PROFIT_CELLS.SHIPPING_COST,
+        columnIndex: COLUMN_INDEXES.INVENTORY.SHIPPING_PRICE,
+        allowBlank: true,
+        format: '#,##0'
+      },
+      {
+        label: '返金額(円)',
+        rangeA1: PROFIT_CELLS.REFUND_AMOUNT,
+        columnIndex: COLUMN_INDEXES.INVENTORY.REFUND_AMOUNT,
+        allowBlank: true,
+        format: '#,##0'
+      },
+      {
+        label: 'Joom手数料(円)',
+        rangeA1: PROFIT_CELLS.JOOM_FEE_YEN,
+        columnIndex: COLUMN_INDEXES.INVENTORY.JOOM_FEE,
+        allowBlank: true,
+        format: '#,##0'
+      },
+      {
+        label: 'サーチャージ(円)',
+        rangeA1: PROFIT_CELLS.SHIPPING_SURCHARGE,
+        columnIndex: COLUMN_INDEXES.INVENTORY.SURCHARGE,
+        allowBlank: true,
+        format: '#,##0'
+      },
+      {
+        label: '繁忙期料金(円)',
+        rangeA1: PROFIT_CELLS.PEAK_SEASON_FEE,
+        columnIndex: COLUMN_INDEXES.INVENTORY.PEAK_SEASON_FEE,
+        allowBlank: true,
+        format: '#,##0'
+      },
+      // 利益額は数式で自動計算されるため、手動反映は不要
+      // {
+      //   label: '利益額(円)',
+      //   rangeA1: PROFIT_CELLS.PROFIT_YEN,
+      //   columnIndex: COLUMN_INDEXES.INVENTORY.PROFIT,
+      //   allowBlank: true,
+      //   format: '#,##0'
+      // },
+      {
+        label: '最終為替レート',
+        rangeA1: PROFIT_CELLS.EXCHANGE_RATE_FINAL_VALUE,
+        columnIndex: COLUMN_INDEXES.INVENTORY.EXCHANGE_RATE,
+        allowBlank: true,
+        format: '#,##0.00'
+      }
+    ];
+
+    const results = [];
+
+    dataPoints.forEach(function(point) {
+      const rawValue = profitSheet.getRange(point.rangeA1).getValue();
+      const numericValue = getNumericValue(rawValue, point.label, point.allowBlank);
+      const columnIndex = point.columnIndex || ensureInventoryColumn(inventorySheet, point.headerName);
+      const targetRange = inventorySheet.getRange(targetRow, columnIndex);
+      const previousValue = targetRange.getValue();
+      targetRange.setValue(numericValue);
+      if (point.format) {
+        targetRange.setNumberFormat(point.format);
+      }
+      results.push({
+        label: point.label,
+        previous: previousValue,
+        updated: numericValue
+      });
+    });
+
+    const formatCurrency = function(value) {
+      const num = Number(value) || 0;
+      return '¥' + num.toLocaleString();
+    };
+
+    const summaryLines = results.map(function(result) {
+      return `${result.label}: ${formatCurrency(result.previous)} → ${formatCurrency(result.updated)}`;
+    });
+
+    const messageBody = [
+      `商品ID: ${productId}`,
+      '',
+      summaryLines.join('\n')
+    ].join('\n');
+
+    SpreadsheetApp.getUi().alert('反映完了', `${MESSAGES.SUCCESS.INVENTORY_SYNCED}\n\n${messageBody}`, SpreadsheetApp.getUi().ButtonSet.OK);
+  } catch (error) {
+    console.error('syncProfitDataToInventory error:', error);
+    SpreadsheetApp.getUi().alert('エラー', `${MESSAGES.ERROR.INVENTORY_SYNC_FAILED}\n詳細: ${error.message}`, SpreadsheetApp.getUi().ButtonSet.OK);
+  }
+}
+
+/**
  * 商品データの検証
  */
 function validateProductData(productData) {
@@ -1206,21 +1382,16 @@ function validateProductData(productData) {
     }
     
     // 寸法データの検証（オプション）
-    if (productData[20] && productData[20] < 0) {
+    if (productData[COLUMN_INDEXES.INVENTORY.HEIGHT_CM - 1] && productData[COLUMN_INDEXES.INVENTORY.HEIGHT_CM - 1] < 0) {
       errors.push('高さが負の値です');
     }
     
-    if (productData[21] && productData[21] < 0) {
+    if (productData[COLUMN_INDEXES.INVENTORY.LENGTH_CM - 1] && productData[COLUMN_INDEXES.INVENTORY.LENGTH_CM - 1] < 0) {
       errors.push('長さが負の値です');
     }
     
-    if (productData[22] && productData[22] < 0) {
+    if (productData[COLUMN_INDEXES.INVENTORY.WIDTH_CM - 1] && productData[COLUMN_INDEXES.INVENTORY.WIDTH_CM - 1] < 0) {
       errors.push('幅が負の値です');
-    }
-    
-    // 容積重量係数の検証
-    if (productData[23] && (productData[23] < 1000 || productData[23] > 10000)) {
-      errors.push('容積重量係数が範囲外です（1000-10000）');
     }
     
     return {
@@ -1233,119 +1404,6 @@ function validateProductData(productData) {
       isValid: false,
       errors: ['データ検証中にエラーが発生しました: ' + error.message]
     };
-  }
-}
-
-/**
- * 利益計算シートにテストデータを設定
- */
-function setupProfitSheetTestData() {
-  try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const profitSheet = ss.getSheetByName(SHEET_NAMES.PROFIT);
-    
-    if (!profitSheet) {
-      SpreadsheetApp.getUi().alert('利益計算シートが見つかりません');
-      return;
-    }
-    
-    // テストデータを設定
-    profitSheet.getRange('B2').setValue('1'); // 商品ID（iPhone 15 Pro）
-    profitSheet.getRange('B5').setValue('IPH15P-128'); // SKU
-    profitSheet.getRange('E5').setValue('iPhone 15 Pro 128GB'); // 商品名
-    profitSheet.getRange('B6').setValue('https://amazon.co.jp/dp/B0CHX1W1XY'); // 仕入URL
-    profitSheet.getRange('E6').setValue('Amazon'); // 仕入元
-    profitSheet.getRange('B12').setValue(150000); // 販売価格
-    profitSheet.getRange('D12').setValue(1); // 出品数量
-    profitSheet.getRange('B13').setValue(120000); // 仕入価格
-    profitSheet.getRange('D13').setValue(0); // 割引率
-    profitSheet.getRange('B14').setValue(0); // 割引ポイント
-    profitSheet.getRange('B15').setValue(187); // 重量
-    profitSheet.getRange('E15').setValue('Joom Logistics'); // 発送方法
-    profitSheet.getRange('B16').setValue('EU圏'); // 配送地帯（B27も自動で同期）
-    profitSheet.getRange('B18').setValue(0); // 返金額
-    profitSheet.getRange('B21').setValue(7.6); // 高さ(cm)
-    profitSheet.getRange('D21').setValue(14.7); // 長さ(cm)
-    profitSheet.getRange('B22').setValue(0.8); // 幅(cm)
-    profitSheet.getRange(PROFIT_CELLS.CATEGORY).setValue('家電'); // 商品カテゴリー
-    profitSheet.getRange(PROFIT_CELLS.EXCHANGE_RATE_MANUAL_VALUE).setValue(150); // 手動為替レート
-    
-    SpreadsheetApp.getUi().alert('利益計算シートにテストデータを設定しました');
-    
-  } catch (error) {
-    console.error('テストデータ設定中にエラーが発生しました:', error);
-    SpreadsheetApp.getUi().alert('エラーが発生しました: ' + error.message);
-  }
-}
-
-/**
- * 複数商品の一括データ読み込み
- */
-function loadMultipleProductsData(productIds) {
-  try {
-    const results = [];
-    let successCount = 0;
-    let errorCount = 0;
-    
-    for (const productId of productIds) {
-      const result = loadProductDataFromInventory(productId, false);
-      if (result) {
-        successCount++;
-        results.push({ productId, status: 'success' });
-      } else {
-        errorCount++;
-        results.push({ productId, status: 'error' });
-      }
-    }
-    
-    const message = `一括読み込み完了: 成功 ${successCount}件, エラー ${errorCount}件`;
-    console.log(message);
-    SpreadsheetApp.getUi().alert('一括読み込み結果', message, SpreadsheetApp.getUi().ButtonSet.OK);
-    
-    return results;
-    
-  } catch (error) {
-    const message = `一括読み込み中にエラーが発生しました: ${error.message}`;
-    console.error(message, error);
-    SpreadsheetApp.getUi().alert('エラー', message, SpreadsheetApp.getUi().ButtonSet.OK);
-    return [];
-  }
-}
-
-/**
- * 複数商品一括読み込みメニューの表示
- */
-function showBulkLoadMenu() {
-  try {
-    const ui = SpreadsheetApp.getUi();
-    const response = ui.prompt(
-      '複数商品一括読み込み',
-      '読み込む商品IDをカンマ区切りで入力してください（例: 1,2,3,4,5）:',
-      ui.ButtonSet.OK_CANCEL
-    );
-    
-    if (response.getSelectedButton() === ui.Button.OK) {
-      const input = response.getResponseText().trim();
-      if (input === '') {
-        ui.alert('エラー', '商品IDを入力してください', ui.ButtonSet.OK);
-        return;
-      }
-      
-      // カンマ区切りで分割して、空白を除去
-      const productIds = input.split(',').map(id => id.trim()).filter(id => id !== '');
-      
-      if (productIds.length === 0) {
-        ui.alert('エラー', '有効な商品IDが入力されていません', ui.ButtonSet.OK);
-        return;
-      }
-      
-      // 一括読み込み実行
-      loadMultipleProductsData(productIds);
-    }
-    
-  } catch (error) {
-    console.error('一括読み込みメニューでエラーが発生しました:', error);
-    SpreadsheetApp.getUi().alert('エラー', '一括読み込みメニューでエラーが発生しました: ' + error.message, SpreadsheetApp.getUi().ButtonSet.OK);
   }
 }
 
@@ -1450,24 +1508,12 @@ function initializeProfitSheetOnly() {
     // 検証を実行
     const isValid = verifyProfitSheetLayout();
     
-    // 設定値の更新
-    if (typeof updateProfitCalculationSettings === 'function') {
-      updateProfitCalculationSettings();
-    }
-    
-    // 為替レートの検証
-    if (typeof validateAndUpdateExchangeRate === 'function') {
-      validateAndUpdateExchangeRate();
-    }
-    
     const resultMessage = '利益計算シートの初期化が完了しました。\n\n' +
                          '初期化内容:\n' +
                          '✓ シート作成・設定\n' +
                          '✓ 名前付き範囲設定\n' +
                          '✓ データ検証（ドロップダウン）設定\n' +
-                         '✓ 参照式設定\n' +
-                         '✓ 設定値反映\n' +
-                         '✓ 為替レート検証\n\n' +
+                         '✓ 参照式設定\n\n' +
                          '検証結果: ' + (isValid ? '正常' : '一部警告あり') + '\n\n' +
                          '利益計算機能が利用可能になりました。';
     
@@ -1727,14 +1773,9 @@ function setupCustomMenu() {
         .addItem('利益計算シート初期化', 'initializeProfitSheetOnly')
         .addItem('利益計算シート検証', 'verifyProfitSheetLayout')
         .addItem('参照式更新', 'updateProfitSheetFormulas')
+        .addItem('利益計算データを在庫管理へ反映', 'syncProfitDataToInventory')
         .addSeparator()
         .addItem('商品データ読み込み', 'loadProductDataMenu')
-        .addItem('複数商品一括読み込み', 'showBulkLoadMenu')
-        .addItem('テストデータ設定', 'setupProfitSheetTestData')
-        .addSeparator()
-        .addItem('為替レート検証', 'validateAndUpdateExchangeRate')
-        .addItem('設定値更新', 'updateProfitCalculationSettings')
-        .addItem('為替レート切替', 'toggleExchangeRateMode')
     )
     .addSubMenu(
       ui.createMenu('💰 価格履歴')

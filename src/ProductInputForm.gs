@@ -46,13 +46,15 @@ function saveNewProduct(formData) {
       addCategoryColumnToExistingSheet();
     }
     
+    // 利益計算関連列が存在するかチェックし、存在しない場合は追加
+    if (!headers.includes('返金額(円)') || !headers.includes('最終為替レート')) {
+      console.log('利益計算関連列が存在しないため、追加します');
+      addProfitRelatedColumnsToExistingSheet();
+    }
+    
     // 現在の日時を取得
     const now = new Date();
     const timestamp = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
-    
-    // 利益計算（販売価格 - 仕入れ価格）
-    // 商品の仕入れには手数料が発生しないため、手数料は考慮しない
-    const profit = (formData.sellingPrice || 0) - formData.purchasePrice;
     
     // 新しい行のデータを準備（Joom対応フィールド含む）
     const newRowData = [
@@ -65,6 +67,12 @@ function saveNewProduct(formData) {
       formData.purchasePrice,       // 仕入れ価格
       formData.sellingPrice || 0,        // 販売価格
       formData.weight,              // 重量
+      // 容積重量計算用寸法フィールド（重量の後ろに配置）
+      formData.heightCm || 0,       // 高さ(cm)
+      formData.lengthCm || 0,       // 長さ(cm)
+      formData.widthCm || 0,        // 幅(cm)
+      // 利益計算用カテゴリーフィールド
+      formData.category || '',      // 商品カテゴリー
       // Joom対応フィールド
       formData.description || '',   // 商品説明
       formData.mainImageUrl || '',  // メイン画像URL
@@ -73,19 +81,18 @@ function saveNewProduct(formData) {
       formData.stockQuantity || (formData.stockStatus === '在庫あり' ? 1 : 0), // 在庫数量
       // 既存フィールド
       formData.stockStatus,         // 在庫ステータス
-      profit,                       // 利益（計算値）
+      // 利益計算関連フィールド（初期値0）
+      0,                            // 返金額(円)
+      0,                            // Joom手数料(円)
+      0,                            // サーチャージ(円)
+      0,                            // 繁忙期料金(円)
+      '',                           // 利益（計算式で設定）
+      0,                            // 最終為替レート
       timestamp,                    // 最終更新日時
       formData.notes || '',         // 備考・メモ
       // Joom連携管理列
       '未連携',                      // Joom連携ステータス
-      '',                           // 最終出力日時
-      // 容積重量計算用寸法フィールド
-      formData.heightCm || 0,       // 高さ(cm)
-      formData.lengthCm || 0,       // 長さ(cm)
-      formData.widthCm || 0,        // 幅(cm)
-      formData.volumetricFactor || 6000,  // 容積重量係数
-      // 利益計算用カテゴリーフィールド
-      formData.category || ''        // 商品カテゴリー
+      ''                            // 最終出力日時
     ];
     
     // 在庫管理シートに新しい行を追加
@@ -101,6 +108,16 @@ function saveNewProduct(formData) {
     inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.WEIGHT, 1, 1).setNumberFormat('0');        // 重量
     inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.SHIPPING_PRICE, 1, 1).setNumberFormat('#,##0');   // 配送価格
     inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.STOCK_QUANTITY, 1, 1).setNumberFormat('0');       // 在庫数量
+    inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.REFUND_AMOUNT, 1, 1).setNumberFormat('#,##0');   // 返金額(円)
+    inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.JOOM_FEE, 1, 1).setNumberFormat('#,##0');   // Joom手数料(円)
+    inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.SURCHARGE, 1, 1).setNumberFormat('#,##0');   // サーチャージ(円)
+    inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.PEAK_SEASON_FEE, 1, 1).setNumberFormat('#,##0');   // 繁忙期料金(円)
+    inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.EXCHANGE_RATE, 1, 1).setNumberFormat('#,##0.00');   // 最終為替レート
+    
+    // 利益計算式を設定（利益計算シートと同様）
+    // H列: 販売価格, G列: 仕入れ価格, R列: 配送価格(送料), V列: Joom手数料, W列: サーチャージ, X列: 繁忙期料金, U列: 返金額(プラス)
+    const profitFormula = `=H${lastRow}-G${lastRow}-R${lastRow}-V${lastRow}-W${lastRow}-X${lastRow}+U${lastRow}`;
+    inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.PROFIT, 1, 1).setFormula(profitFormula);
     inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.PROFIT, 1, 1).setNumberFormat('#,##0');   // 利益
     
     // 価格履歴を自動で作成
@@ -667,12 +684,6 @@ function getProductInputFormHtml() {
             <input type="number" id="widthCm" name="widthCm" placeholder="15" min="0" step="0.1">
             <div class="error-message" id="widthCmError">幅を入力してください（cm）</div>
           </div>
-          
-          <div class="form-group">
-            <label for="volumetricFactor">容積重量係数</label>
-            <input type="number" id="volumetricFactor" name="volumetricFactor" placeholder="6000" min="1000" value="6000">
-            <div class="error-message" id="volumetricFactorError">容積重量係数を入力してください</div>
-          </div>
         </div>
         
         <!-- Joom対応フィールドセクション -->
@@ -980,7 +991,6 @@ function getProductInputFormHtml() {
           heightCm: parseFloat(document.getElementById('heightCm').value) || 0,
           lengthCm: parseFloat(document.getElementById('lengthCm').value) || 0,
           widthCm: parseFloat(document.getElementById('widthCm').value) || 0,
-          volumetricFactor: parseInt(document.getElementById('volumetricFactor').value) || 6000,
           // 既存フィールド
           stockStatus: document.getElementById('stockStatus').value,
           category: document.getElementById('category').value,
@@ -1175,7 +1185,6 @@ function testNotesFunctionality() {
       heightCm: 7.6,
       lengthCm: 14.7,
       widthCm: 0.8,
-      volumetricFactor: 6000,
       stockStatus: '在庫あり',
       notes: 'これは容積重量計算機能のテスト用商品です。寸法データが正常に保存され、利益計算シートで自動読み込みされることを確認します。'
     };

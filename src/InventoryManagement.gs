@@ -46,7 +46,13 @@ function initializeInventorySheet() {
     '仕入れ価格',
     '販売価格',
     '重量',
-    // Joom対応フィールド（重量と在庫ステータスの間に挿入）
+    // 容積重量計算用寸法フィールド（重量の後ろに配置）
+    '高さ(cm)',
+    '長さ(cm)',
+    '幅(cm)',
+    // 利益計算用カテゴリーフィールド
+    '商品カテゴリー',
+    // Joom対応フィールド
     '商品説明',
     'メイン画像URL',
     '通貨',
@@ -54,19 +60,18 @@ function initializeInventorySheet() {
     '在庫数量',
     // 既存フィールド
     '在庫ステータス',
+    // 利益計算関連フィールド
+    '返金額(円)',
+    'Joom手数料(円)',
+    'サーチャージ(円)',
+    '繁忙期料金(円)',
     '利益',
+    '最終為替レート',
     '最終更新日時',
     '備考・メモ',
     // Joom連携管理列
     'Joom連携ステータス',
-    '最終出力日時',
-    // 容積重量計算用寸法フィールド
-    '高さ(cm)',
-    '長さ(cm)',
-    '幅(cm)',
-    '容積重量係数',
-    // 利益計算用カテゴリーフィールド
-    '商品カテゴリー'
+    '最終出力日時'
   ];
   
   // ヘッダーを設定
@@ -228,9 +233,9 @@ function addCategoryColumnToExistingSheet() {
       return;
     }
     
-    // カテゴリー列を追加（X列（容積重量係数）の後に挿入）
-    const categoryColumnIndex = COLUMN_INDEXES.INVENTORY.CATEGORY; // 25列目
-    inventorySheet.insertColumnAfter(COLUMN_INDEXES.INVENTORY.VOLUMETRIC_FACTOR); // X列の後に挿入
+    // カテゴリー列を追加（L列（幅(cm)）の後に挿入）
+    const categoryColumnIndex = COLUMN_INDEXES.INVENTORY.CATEGORY; // 13列目
+    inventorySheet.insertColumnAfter(COLUMN_INDEXES.INVENTORY.WIDTH_CM); // L列の後に挿入
     
     // 新しいヘッダーを設定
     inventorySheet.getRange(1, categoryColumnIndex).setValue('商品カテゴリー');
@@ -254,15 +259,98 @@ function addCategoryColumnToExistingSheet() {
 }
 
 /**
+ * 既存の在庫管理シートに利益計算関連列を追加
+ */
+function addProfitRelatedColumnsToExistingSheet() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const inventorySheet = spreadsheet.getSheetByName(SHEET_NAMES.INVENTORY);
+  
+  if (!inventorySheet) {
+    console.log('在庫管理シートが見つかりません');
+    return;
+  }
+  
+  try {
+    // 現在のヘッダー行を取得
+    const headerRange = inventorySheet.getRange(1, 1, 1, inventorySheet.getLastColumn());
+    const headers = headerRange.getValues()[0];
+    
+    // 返金額列が既に存在するかチェック
+    if (headers.includes('返金額(円)')) {
+      console.log('利益計算関連列は既に存在します');
+      return;
+    }
+    
+    // 在庫ステータス列（19列目）の後に4つの列を追加（返金額、Joom手数料、サーチャージ、繁忙期料金）
+    const stockStatusColumnIndex = COLUMN_INDEXES.INVENTORY.STOCK_STATUS; // 19列目
+    inventorySheet.insertColumnsAfter(stockStatusColumnIndex, 4);
+    
+    // 利益列（24列目）の後に為替レート列を追加
+    const profitColumnIndex = COLUMN_INDEXES.INVENTORY.PROFIT; // 24列目
+    inventorySheet.insertColumnsAfter(profitColumnIndex, 1);
+    
+    // 新しいヘッダーを設定
+    inventorySheet.getRange(1, COLUMN_INDEXES.INVENTORY.REFUND_AMOUNT).setValue('返金額(円)');
+    inventorySheet.getRange(1, COLUMN_INDEXES.INVENTORY.JOOM_FEE).setValue('Joom手数料(円)');
+    inventorySheet.getRange(1, COLUMN_INDEXES.INVENTORY.SURCHARGE).setValue('サーチャージ(円)');
+    inventorySheet.getRange(1, COLUMN_INDEXES.INVENTORY.PEAK_SEASON_FEE).setValue('繁忙期料金(円)');
+    inventorySheet.getRange(1, COLUMN_INDEXES.INVENTORY.EXCHANGE_RATE).setValue('最終為替レート');
+    
+    // ヘッダーの書式設定
+    const headerColumns = [
+      COLUMN_INDEXES.INVENTORY.REFUND_AMOUNT,
+      COLUMN_INDEXES.INVENTORY.JOOM_FEE,
+      COLUMN_INDEXES.INVENTORY.SURCHARGE,
+      COLUMN_INDEXES.INVENTORY.PEAK_SEASON_FEE,
+      COLUMN_INDEXES.INVENTORY.EXCHANGE_RATE
+    ];
+    
+    headerColumns.forEach(function(colIndex) {
+      const headerRange = inventorySheet.getRange(1, colIndex);
+      headerRange.setBackground('#4285f4');
+      headerRange.setFontColor('#ffffff');
+      headerRange.setFontWeight('bold');
+      headerRange.setHorizontalAlignment('center');
+      inventorySheet.autoResizeColumn(colIndex);
+    });
+    
+    // 既存データ行に利益計算式を設定
+    const lastRow = inventorySheet.getLastRow();
+    if (lastRow > 1) {
+      for (let row = 2; row <= lastRow; row++) {
+    // 利益計算式を設定（利益計算シートと同様）
+    // H列: 販売価格, G列: 仕入れ価格, Q列: 配送価格(送料), U列: Joom手数料, V列: サーチャージ, W列: 繁忙期料金, T列: 返金額(プラス)
+    const formula = `=H${row}-G${row}-Q${row}-U${row}-V${row}-W${row}+T${row}`;
+        inventorySheet.getRange(row, COLUMN_INDEXES.INVENTORY.PROFIT).setFormula(formula);
+        inventorySheet.getRange(row, COLUMN_INDEXES.INVENTORY.PROFIT).setNumberFormat('#,##0');
+        
+        // 新規追加列の書式設定
+        inventorySheet.getRange(row, COLUMN_INDEXES.INVENTORY.REFUND_AMOUNT).setNumberFormat('#,##0');
+        inventorySheet.getRange(row, COLUMN_INDEXES.INVENTORY.JOOM_FEE).setNumberFormat('#,##0');
+        inventorySheet.getRange(row, COLUMN_INDEXES.INVENTORY.SURCHARGE).setNumberFormat('#,##0');
+        inventorySheet.getRange(row, COLUMN_INDEXES.INVENTORY.PEAK_SEASON_FEE).setNumberFormat('#,##0');
+        inventorySheet.getRange(row, COLUMN_INDEXES.INVENTORY.EXCHANGE_RATE).setNumberFormat('#,##0.00');
+      }
+    }
+    
+    console.log('利益計算関連列が正常に追加されました');
+    
+  } catch (error) {
+    console.error('利益計算関連列の追加中にエラーが発生しました:', error);
+    throw error;
+  }
+}
+
+/**
  * サンプルデータの追加
  */
 function addSampleData(sheet) {
   const sampleData = [
-    [1, 'iPhone 15 Pro 128GB', 'IPH15P-128', 'B0CHX1W1XY', 'Amazon', 'https://amazon.co.jp/dp/B0CHX1W1XY', 120000, 150000, 187, '最新のiPhone 15 Pro 128GBモデル。A17 Proチップ搭載で高性能。', 'https://via.placeholder.com/500x500.jpg', 'JPY', 0, 1, '在庫あり', 30000, '2025-09-27 00:00:00', '', '未連携', '', 7.6, 14.7, 0.8, 6000, '家電'],
-    [2, 'MacBook Air M2 13インチ', 'MBA-M2-13', 'B0B3C2Q5XK', '楽天', 'https://item.rakuten.co.jp/example/macbook-air-m2', 140000, 180000, 1240, 'MacBook Air M2 13インチ。M2チップで高速処理。軽量設計。', 'https://example.com/images/macbook-air-m2.jpg', 'JPY', 0, 1, '在庫あり', 40000, '2025-09-27 00:00:00', '', '未連携', '', 1.13, 30.4, 21.5, 6000, '家電'],
-    [3, 'AirPods Pro 第2世代', 'APP-2ND', 'B0BDJDRJ9T', 'Yahooショッピング', 'https://shopping.yahoo.co.jp/products/airpods-pro-2nd', 25000, 35000, 56, 'AirPods Pro 第2世代。ノイズキャンセリング機能搭載。', 'https://example.com/images/airpods-pro-2nd.jpg', 'JPY', 0, 0, '売り切れ', 10000, '2025-09-27 00:00:00', '', '未連携', '', 4.5, 6.0, 4.5, 6000, '家電'],
-    [4, 'iPad Air 第5世代', 'IPAD-AIR-5', 'B09V4HCN9V', 'メルカリ', 'https://mercari.com/items/m123456789', 60000, 80000, 461, 'iPad Air 第5世代。M1チップ搭載で高性能タブレット。', 'https://example.com/images/ipad-air-5.jpg', 'JPY', 0, 1, '在庫あり', 20000, '2025-09-27 00:00:00', '', '未連携', '', 0.6, 24.8, 17.8, 6000, '家電'],
-    [5, 'Apple Watch Series 9', 'AWS-9', 'B0CHX1W1XZ', 'ヤフオク', 'https://page.auctions.yahoo.co.jp/jp/auction/example', 45000, 60000, 39, 'Apple Watch Series 9。健康管理とスマートウォッチ機能。', 'https://example.com/images/apple-watch-s9.jpg', 'JPY', 0, 1, '在庫あり', 15000, '2025-09-27 00:00:00', '', '未連携', '', 1.0, 4.5, 3.8, 6000, '家電']
+    [1, 'iPhone 15 Pro 128GB', 'IPH15P-128', 'B0CHX1W1XY', 'Amazon', 'https://amazon.co.jp/dp/B0CHX1W1XY', 120000, 150000, 187, 7.6, 14.7, 0.8, '家電', '最新のiPhone 15 Pro 128GBモデル。A17 Proチップ搭載で高性能。', 'https://via.placeholder.com/500x500.jpg', 'JPY', 0, 1, '在庫あり', 0, 0, 0, 0, 30000, 150.0, '2025-09-27 00:00:00', '', '未連携', ''],
+    [2, 'MacBook Air M2 13インチ', 'MBA-M2-13', 'B0B3C2Q5XK', '楽天', 'https://item.rakuten.co.jp/example/macbook-air-m2', 140000, 180000, 1240, 1.13, 30.4, 21.5, '家電', 'MacBook Air M2 13インチ。M2チップで高速処理。軽量設計。', 'https://example.com/images/macbook-air-m2.jpg', 'JPY', 0, 1, '在庫あり', 0, 0, 0, 0, 40000, 150.0, '2025-09-27 00:00:00', '', '未連携', ''],
+    [3, 'AirPods Pro 第2世代', 'APP-2ND', 'B0BDJDRJ9T', 'Yahooショッピング', 'https://shopping.yahoo.co.jp/products/airpods-pro-2nd', 25000, 35000, 56, 4.5, 6.0, 4.5, '家電', 'AirPods Pro 第2世代。ノイズキャンセリング機能搭載。', 'https://example.com/images/airpods-pro-2nd.jpg', 'JPY', 0, 0, '売り切れ', 0, 0, 0, 0, 10000, 150.0, '2025-09-27 00:00:00', '', '未連携', ''],
+    [4, 'iPad Air 第5世代', 'IPAD-AIR-5', 'B09V4HCN9V', 'メルカリ', 'https://mercari.com/items/m123456789', 60000, 80000, 461, 0.6, 24.8, 17.8, '家電', 'iPad Air 第5世代。M1チップ搭載で高性能タブレット。', 'https://example.com/images/ipad-air-5.jpg', 'JPY', 0, 1, '在庫あり', 0, 0, 0, 0, 20000, 150.0, '2025-09-27 00:00:00', '', '未連携', ''],
+    [5, 'Apple Watch Series 9', 'AWS-9', 'B0CHX1W1XZ', 'ヤフオク', 'https://page.auctions.yahoo.co.jp/jp/auction/example', 45000, 60000, 39, 1.0, 4.5, 3.8, '家電', 'Apple Watch Series 9。健康管理とスマートウォッチ機能。', 'https://example.com/images/apple-watch-s9.jpg', 'JPY', 0, 1, '在庫あり', 0, 0, 0, 0, 15000, 150.0, '2025-09-27 00:00:00', '', '未連携', '']
   ];
   
   const dataRange = sheet.getRange(2, 1, sampleData.length, sampleData[0].length);
@@ -273,14 +361,18 @@ function addSampleData(sheet) {
   sheet.getRange(2, 7, sampleData.length, 1).setNumberFormat('#,##0'); // 仕入れ価格
   sheet.getRange(2, 8, sampleData.length, 1).setNumberFormat('#,##0'); // 販売価格
   sheet.getRange(2, 9, sampleData.length, 1).setNumberFormat('0'); // 重量
-  sheet.getRange(2, 13, sampleData.length, 1).setNumberFormat('#,##0'); // 配送価格
-  sheet.getRange(2, 14, sampleData.length, 1).setNumberFormat('0'); // 在庫数量
-  sheet.getRange(2, 16, sampleData.length, 1).setNumberFormat('#,##0'); // 利益
   // 寸法フィールドの書式設定
-  sheet.getRange(2, 21, sampleData.length, 1).setNumberFormat('0.0'); // 高さ(cm)
-  sheet.getRange(2, 22, sampleData.length, 1).setNumberFormat('0.0'); // 長さ(cm)
-  sheet.getRange(2, 23, sampleData.length, 1).setNumberFormat('0.0'); // 幅(cm)
-  sheet.getRange(2, 24, sampleData.length, 1).setNumberFormat('0'); // 容積重量係数
+  sheet.getRange(2, 10, sampleData.length, 1).setNumberFormat('0.0'); // 高さ(cm)
+  sheet.getRange(2, 11, sampleData.length, 1).setNumberFormat('0.0'); // 長さ(cm)
+  sheet.getRange(2, 12, sampleData.length, 1).setNumberFormat('0.0'); // 幅(cm)
+  sheet.getRange(2, 17, sampleData.length, 1).setNumberFormat('#,##0'); // 配送価格
+  sheet.getRange(2, 18, sampleData.length, 1).setNumberFormat('0'); // 在庫数量
+  sheet.getRange(2, 20, sampleData.length, 1).setNumberFormat('#,##0'); // 返金額(円)
+  sheet.getRange(2, 21, sampleData.length, 1).setNumberFormat('#,##0'); // Joom手数料(円)
+  sheet.getRange(2, 22, sampleData.length, 1).setNumberFormat('#,##0'); // サーチャージ(円)
+  sheet.getRange(2, 23, sampleData.length, 1).setNumberFormat('#,##0'); // 繁忙期料金(円)
+  sheet.getRange(2, 24, sampleData.length, 1).setNumberFormat('#,##0'); // 利益
+  sheet.getRange(2, 25, sampleData.length, 1).setNumberFormat('#,##0.00'); // 最終為替レート
 }
 
 /**
@@ -288,7 +380,7 @@ function addSampleData(sheet) {
  */
 function setupConditionalFormatting(sheet) {
   // 在庫ステータスによる色分け
-  const statusRange = sheet.getRange('O:O');
+  const statusRange = sheet.getRange(1, COLUMN_INDEXES.INVENTORY.STOCK_STATUS, sheet.getLastRow(), 1);
   
   // 在庫あり - 緑色
   const inStockRule = SpreadsheetApp.newConditionalFormatRule()
@@ -315,11 +407,12 @@ function setupConditionalFormatting(sheet) {
 function setupProfitCalculation(sheet) {
   const lastRow = sheet.getLastRow();
   
-  // 利益計算式を設定（販売価格 - 仕入れ価格 - 手数料）
-  // 手数料は仮に仕入れ価格の5%とする
+  // 利益計算式を設定（利益計算シートと同様: 販売価格 - 仕入れ価格 - 送料 - Joom手数料 - サーチャージ - 繁忙期料金 + 返金額）
+  // 利益計算シートの式: =B12-E14-E16-E17-E18-E19+B18
   for (let row = 2; row <= lastRow; row++) {
-    const formula = `=H${row}-G${row}-(G${row}*0.05)`;
-    sheet.getRange(row, 16).setFormula(formula);
+    // H列: 販売価格, G列: 仕入れ価格, Q列: 配送価格(送料), U列: Joom手数料, V列: サーチャージ, W列: 繁忙期料金, T列: 返金額(プラス)
+    const formula = `=H${row}-G${row}-Q${row}-U${row}-V${row}-W${row}+T${row}`;
+    sheet.getRange(row, COLUMN_INDEXES.INVENTORY.PROFIT).setFormula(formula);
   }
 }
 
