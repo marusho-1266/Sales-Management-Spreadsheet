@@ -16,3 +16,29 @@ doc/Joomアカウント.txt
 2025-10-11_21h25_34.png
 2025-11-02
 2025-10-11_21h25_22.png
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+*.egg-info/
+dist/
+build/
+
+# 環境変数
+.env
+inventory_scraper/.env
+
+# データファイル
+inventory_scraper/data/*.csv
+inventory_scraper/logs/*.log
+
+# ChromeDriver
+chromedriver
+chromedriver.exe
