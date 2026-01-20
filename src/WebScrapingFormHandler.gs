@@ -76,12 +76,24 @@ function onFormSubmit(e) {
     
     console.log('列インデックス:', columnIndexes);
     
-    // スプレッドシートを取得
-    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-    const inventorySheet = spreadsheet.getSheetByName(SHEET_NAMES.INVENTORY);
+    // スプレッドシートを取得（定数IDを使用）
+    let spreadsheet;
+    try {
+      if (!SPREADSHEET_ID || SPREADSHEET_ID === 'YOUR_SPREADSHEET_ID_HERE') {
+        throw new Error('SPREADSHEET_IDが設定されていません。Constants.gsのSPREADSHEET_IDを実際のスプレッドシートIDに設定してください。');
+      }
+      spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+    } catch (error) {
+      console.error('スプレッドシートの取得に失敗しました:', error.message);
+      console.error('SPREADSHEET_IDを確認してください:', SPREADSHEET_ID);
+      return;
+    }
     
+    // 在庫管理シートを取得
+    const inventorySheet = spreadsheet.getSheetByName(SHEET_NAMES.INVENTORY);
     if (!inventorySheet) {
       console.error('在庫管理シートが見つかりません');
+      console.error('シート名を確認してください:', SHEET_NAMES.INVENTORY);
       return;
     }
     
@@ -163,6 +175,12 @@ function onFormSubmit(e) {
     let statusUpdateCount = 0;
     let dateUpdateCount = 0;
     
+    // 列インデックスを配列インデックス（0ベース）に変換
+    const purchasePriceColIndex = purchasePriceCol - 1;
+    const stockStatusColIndex = stockStatusCol - 1;
+    const lastUpdatedColIndex = lastUpdatedCol - 1;
+    
+    // ループ内でsheetData配列を直接更新（メモリ内で更新）
     for (let i = 1; i < sheetData.length; i++) {
       const row = sheetData[i];
       const sheetSupplierUrl = row[sheetSupplierUrlIndex];
@@ -181,8 +199,8 @@ function onFormSubmit(e) {
         
         // 仕入れ価格を更新（-1の場合は更新しない）
         if (csvRow.purchasePrice !== undefined && csvRow.purchasePrice !== '') {
-          const currentPrice = inventorySheet.getRange(rowNumber, purchasePriceCol).getValue();
-          inventorySheet.getRange(rowNumber, purchasePriceCol).setValue(csvRow.purchasePrice);
+          const currentPrice = row[purchasePriceColIndex]; // sheetDataから現在の値を取得
+          row[purchasePriceColIndex] = csvRow.purchasePrice; // sheetData配列を直接更新
           priceUpdateCount++;
           rowUpdated = true;
           console.log(`行[${rowNumber}]: 仕入れ価格を更新 ${currentPrice} → ${csvRow.purchasePrice} (URL: ${normalizedSheetUrl.substring(0, 50)}...)`);
@@ -190,8 +208,8 @@ function onFormSubmit(e) {
         
         // 在庫ステータスを更新
         if (csvRow.stockStatus !== undefined && csvRow.stockStatus !== '') {
-          const currentStatus = inventorySheet.getRange(rowNumber, stockStatusCol).getValue();
-          inventorySheet.getRange(rowNumber, stockStatusCol).setValue(csvRow.stockStatus);
+          const currentStatus = row[stockStatusColIndex]; // sheetDataから現在の値を取得
+          row[stockStatusColIndex] = csvRow.stockStatus; // sheetData配列を直接更新
           statusUpdateCount++;
           rowUpdated = true;
           console.log(`行[${rowNumber}]: 在庫ステータスを更新 ${currentStatus} → ${csvRow.stockStatus}`);
@@ -199,7 +217,7 @@ function onFormSubmit(e) {
         
         // 最終更新日時を更新
         if (csvRow.lastUpdated !== undefined && csvRow.lastUpdated !== '') {
-          inventorySheet.getRange(rowNumber, lastUpdatedCol).setValue(csvRow.lastUpdated);
+          row[lastUpdatedColIndex] = csvRow.lastUpdated; // sheetData配列を直接更新
           dateUpdateCount++;
           rowUpdated = true;
         }
@@ -214,6 +232,18 @@ function onFormSubmit(e) {
         // マッチしなかったURLをログに記録（デバッグ用）
         console.log(`行[${i + 1}]: URLがマッチしませんでした: ${normalizedSheetUrl.substring(0, 50)}...`);
       }
+    }
+    
+    // 更新されたデータを一括で書き込み（API呼び出しを1回に削減）
+    if (updateCount > 0) {
+      // ヘッダー行を除いたデータ行を一括で書き込み
+      const dataRows = sheetData.slice(1); // ヘッダー行を除外
+      const startRow = 2; // データ行の開始行（ヘッダーが1行目なので2行目から）
+      const numRows = dataRows.length;
+      const numCols = sheetData[0].length; // 列数はヘッダー行から取得
+      
+      inventorySheet.getRange(startRow, 1, numRows, numCols).setValues(dataRows);
+      console.log(`一括書き込みを実行しました: ${numRows}行 × ${numCols}列`);
     }
     
     // 見つからなかったURLをログに記録
@@ -541,7 +571,10 @@ function extractFormIdFromUrl(formUrl) {
   // URLからフォームIDを抽出
   // 形式: https://docs.google.com/forms/d/e/FORM_ID/viewform
   // または: https://docs.google.com/forms/d/e/FORM_ID/edit
-  const match = formUrl.match(/\/d\/e\/([^\/]+)/);
+  // または: https://docs.google.com/forms/d/FORM_ID/viewform
+  // または: https://docs.google.com/forms/d/FORM_ID/edit
+  // 注意: `/d/e/` と `/d/` の両方のパターンに対応（`e/` セグメントはオプショナル）
+  const match = formUrl.match(/\/d\/(?:e\/)?([^\/]+)/);
   if (!match || !match[1]) {
     throw new Error('フォームURLからフォームIDを抽出できませんでした。URLの形式を確認してください。');
   }
