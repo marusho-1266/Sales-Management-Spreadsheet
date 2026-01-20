@@ -36,12 +36,16 @@ function doGet(e) {
         
         const result = updateInventorySheet(csvRows);
         
-        // ファイルを削除（処理後）
-        try {
-          csvFile.setTrashed(true);
-          console.log('CSVファイルをゴミ箱へ移動しました');
-        } catch (trashError) {
-          console.warn('ファイル削除エラー（無視）:', trashError);
+        // ファイルを削除（成功時のみ）
+        if (result && result.success) {
+          try {
+            csvFile.setTrashed(true);
+            console.log('CSVファイルをゴミ箱へ移動しました');
+          } catch (trashError) {
+            console.warn('ファイル削除エラー（無視）:', trashError);
+          }
+        } else {
+          console.log('更新が失敗したため、CSVファイルを保持します（リトライのため）');
         }
         
         return ContentService.createTextOutput(JSON.stringify(result))
@@ -112,12 +116,10 @@ function doGet(e) {
     })).setMimeType(ContentService.MimeType.JSON);
     
   } catch (error) {
-    console.error('doGet関数でエラーが発生しました:', error);
-    console.error('エラースタック:', error.stack);
+    console.error('doGet関数でエラーが発生しました:', error, error.stack);
     return ContentService.createTextOutput(JSON.stringify({
       success: false,
-      error: error.message,
-      stack: error.stack
+      error: 'サーバーエラーが発生しました'
     })).setMimeType(ContentService.MimeType.JSON);
   }
 }
@@ -249,7 +251,6 @@ function updateInventorySheet(csvRows) {
       
       // 文字列の類似度を計算（簡易版）
       const longer = url1.length > url2.length ? url1 : url2;
-      const shorter = url1.length > url2.length ? url2 : url1;
       const editDistance = levenshteinDistance(url1, url2);
       return 1 - (editDistance / longer.length);
     }
@@ -318,12 +319,17 @@ function updateInventorySheet(csvRows) {
     
     console.log(`CSVデータをMapに変換しました: ${csvMap.size}件`);
     
-    // 在庫管理シートを更新
+    // 在庫管理シートを更新（バッチ書き込み用の更新データを蓄積）
     let updateCount = 0;
     let priceUpdateCount = 0;
     let statusUpdateCount = 0;
     let dateUpdateCount = 0;
     let notFoundCount = 0;
+    
+    // 更新データを蓄積するMap（行番号 -> 値）
+    const purchasePriceUpdates = new Map();
+    const stockStatusUpdates = new Map();
+    const lastUpdatedUpdates = new Map();
     
     for (let i = 1; i < sheetData.length; i++) {
       const row = sheetData[i];
@@ -354,23 +360,23 @@ function updateInventorySheet(csvRows) {
         const rowNumber = i + 1;
         let rowUpdated = false;
         
-        // 仕入れ価格を更新
+        // 仕入れ価格を更新（配列に蓄積）
         if (csvRow.purchasePrice !== undefined && csvRow.purchasePrice !== '') {
-          inventorySheet.getRange(rowNumber, purchasePriceCol).setValue(csvRow.purchasePrice);
+          purchasePriceUpdates.set(rowNumber, csvRow.purchasePrice);
           priceUpdateCount++;
           rowUpdated = true;
         }
         
-        // 在庫ステータスを更新
+        // 在庫ステータスを更新（配列に蓄積）
         if (csvRow.stockStatus !== undefined && csvRow.stockStatus !== '') {
-          inventorySheet.getRange(rowNumber, stockStatusCol).setValue(csvRow.stockStatus);
+          stockStatusUpdates.set(rowNumber, csvRow.stockStatus);
           statusUpdateCount++;
           rowUpdated = true;
         }
         
-        // 最終更新日時を更新
+        // 最終更新日時を更新（配列に蓄積）
         if (csvRow.lastUpdated !== undefined && csvRow.lastUpdated !== '') {
-          inventorySheet.getRange(rowNumber, lastUpdatedCol).setValue(csvRow.lastUpdated);
+          lastUpdatedUpdates.set(rowNumber, csvRow.lastUpdated);
           dateUpdateCount++;
           rowUpdated = true;
         }
@@ -381,6 +387,57 @@ function updateInventorySheet(csvRows) {
         
         csvMap.delete(normalizedSheetUrl);
       }
+    }
+    
+    // バッチ書き込み: 仕入れ価格
+    if (purchasePriceUpdates.size > 0) {
+      const sortedRows = Array.from(purchasePriceUpdates.keys()).sort((a, b) => a - b);
+      const startRow = sortedRows[0];
+      const endRow = sortedRows[sortedRows.length - 1];
+      const numRows = endRow - startRow + 1;
+      
+      // 現在の値を取得して、更新が必要な行のみ新しい値で置き換え
+      const currentValues = inventorySheet.getRange(startRow, purchasePriceCol, numRows, 1).getValues();
+      const purchasePriceValues = currentValues.map((value, index) => {
+        const rowNum = startRow + index;
+        return purchasePriceUpdates.has(rowNum) ? [purchasePriceUpdates.get(rowNum)] : value;
+      });
+      
+      inventorySheet.getRange(startRow, purchasePriceCol, numRows, 1).setValues(purchasePriceValues);
+    }
+    
+    // バッチ書き込み: 在庫ステータス
+    if (stockStatusUpdates.size > 0) {
+      const sortedRows = Array.from(stockStatusUpdates.keys()).sort((a, b) => a - b);
+      const startRow = sortedRows[0];
+      const endRow = sortedRows[sortedRows.length - 1];
+      const numRows = endRow - startRow + 1;
+      
+      // 現在の値を取得して、更新が必要な行のみ新しい値で置き換え
+      const currentValues = inventorySheet.getRange(startRow, stockStatusCol, numRows, 1).getValues();
+      const stockStatusValues = currentValues.map((value, index) => {
+        const rowNum = startRow + index;
+        return stockStatusUpdates.has(rowNum) ? [stockStatusUpdates.get(rowNum)] : value;
+      });
+      
+      inventorySheet.getRange(startRow, stockStatusCol, numRows, 1).setValues(stockStatusValues);
+    }
+    
+    // バッチ書き込み: 最終更新日時
+    if (lastUpdatedUpdates.size > 0) {
+      const sortedRows = Array.from(lastUpdatedUpdates.keys()).sort((a, b) => a - b);
+      const startRow = sortedRows[0];
+      const endRow = sortedRows[sortedRows.length - 1];
+      const numRows = endRow - startRow + 1;
+      
+      // 現在の値を取得して、更新が必要な行のみ新しい値で置き換え
+      const currentValues = inventorySheet.getRange(startRow, lastUpdatedCol, numRows, 1).getValues();
+      const lastUpdatedValues = currentValues.map((value, index) => {
+        const rowNum = startRow + index;
+        return lastUpdatedUpdates.has(rowNum) ? [lastUpdatedUpdates.get(rowNum)] : value;
+      });
+      
+      inventorySheet.getRange(startRow, lastUpdatedCol, numRows, 1).setValues(lastUpdatedValues);
     }
     
     // 見つからなかったURLをカウント
@@ -433,7 +490,6 @@ function testUpdateFromCsv(csvContent) {
 /**
  * デバッグ用: Webアプリが正しく動作しているか確認する
  * 
- * @param {GoogleAppsScript.Events.DoGet} e - GETリクエストイベント
  * @returns {TextOutput} テスト結果
  */
 function testWebApp() {
