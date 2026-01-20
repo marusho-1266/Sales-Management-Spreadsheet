@@ -25,6 +25,11 @@ GAS_WEB_APP_URL = os.getenv('GAS_WEB_APP_URL', '')
 CHROME_PROFILE_PATH = os.getenv('CHROME_PROFILE_PATH', '')
 CHROME_PROFILE_NAME = os.getenv('CHROME_PROFILE_NAME', 'Default')
 
+# Chrome User-Agent設定
+# 環境変数 CHROME_USER_AGENT が設定されていない場合はデフォルト値を使用
+DEFAULT_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+CHROME_USER_AGENT = os.getenv('CHROME_USER_AGENT', DEFAULT_USER_AGENT)
+
 # ダウンロードフォルダ
 DOWNLOAD_FOLDER = os.getenv('DOWNLOAD_FOLDER', str(Path.home() / 'Downloads'))
 

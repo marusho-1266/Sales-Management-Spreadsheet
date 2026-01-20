@@ -7,7 +7,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
-from .config import CHROME_PROFILE_PATH, CHROME_PROFILE_NAME, DATA_DIR
+from .config import CHROME_PROFILE_PATH, CHROME_PROFILE_NAME, DATA_DIR, CHROME_USER_AGENT
 
 
 def create_browser():
@@ -54,8 +54,9 @@ def create_browser():
     driver = webdriver.Chrome(service=service, options=chrome_options)
     
     # User-Agentを設定（Bot検知回避）
+    # 環境変数 CHROME_USER_AGENT から読み込む（設定されていない場合はデフォルト値を使用）
     driver.execute_cdp_cmd('Network.setUserAgentOverride', {
-        "userAgent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        "userAgent": CHROME_USER_AGENT
     })
     
     return driver
