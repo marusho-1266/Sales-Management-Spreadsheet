@@ -3,13 +3,23 @@ Googleフォームアップロードモジュール
 結果CSVをGoogleフォーム経由で送信する
 """
 import time
+import logging
 import pandas as pd
 from pathlib import Path
+from typing import Dict, Optional
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.common.exceptions import (
+    TimeoutException,
+    NoSuchElementException,
+    NoSuchFrameException,
+    WebDriverException
+)
 from .config import GOOGLE_FORM_URL, DATA_DIR
+
+# ロガーを設定
+logger = logging.getLogger(__name__)
 
 
 def save_result_csv(df: pd.DataFrame, filename: str = 'upload_data.csv') -> Path:
@@ -22,18 +32,29 @@ def save_result_csv(df: pd.DataFrame, filename: str = 'upload_data.csv') -> Path
     
     Returns:
         Path: 保存されたCSVファイルのパス
+    
+    Raises:
+        Exception: CSVファイルの保存に失敗した場合
     """
     data_dir = Path(DATA_DIR)
     csv_path = data_dir / filename
     
+    # 親ディレクトリが存在することを確認（存在しない場合は作成）
+    data_dir.mkdir(parents=True, exist_ok=True)
+    
     # UTF-8 BOM付きで保存（Excel互換性のため）
-    df.to_csv(csv_path, index=False, encoding='utf-8-sig')
+    try:
+        df.to_csv(csv_path, index=False, encoding='utf-8-sig')
+    except Exception as e:
+        error_message = f"CSVファイルの保存に失敗しました: {csv_path}, エラー: {e}"
+        logger.error(error_message)
+        raise Exception(error_message) from e
     
     print(f"CSVファイルを保存しました: {csv_path}")
     return csv_path
 
 
-def upload_to_google_form(browser, csv_path: Path):
+def upload_to_google_form(browser, csv_path: Path) -> Dict[str, str]:
     """
     GoogleフォームにCSVファイルをアップロードして送信する
     
@@ -41,10 +62,24 @@ def upload_to_google_form(browser, csv_path: Path):
         browser: Selenium WebDriverインスタンス
         csv_path: アップロードするCSVファイルのパス
     
+    Returns:
+        Dict[str, str]: 送信結果を表す辞書
+            - status: "success" または "unconfirmed"
+            - message: 結果メッセージ
+            - url: 送信後のURL（unconfirmedの場合）
+            - title: 送信後のページタイトル（unconfirmedの場合）
+    
     Raises:
         Exception: アップロードに失敗した場合
     """
     try:
+        # CSVファイルのパスを絶対パスに変換
+        absolute_csv_path = csv_path.resolve()
+        
+        # ファイルの存在確認（ブラウザ操作の前にチェック）
+        if not absolute_csv_path.exists():
+            raise Exception(f"CSVファイルが見つかりません: {absolute_csv_path}")
+        
         # Googleフォームを開く
         print(f"Googleフォームを開きます: {GOOGLE_FORM_URL}")
         browser.get(GOOGLE_FORM_URL)
@@ -382,15 +417,25 @@ def upload_to_google_form(browser, csv_path: Path):
                 try:
                     browser.switch_to.default_content()
                     in_iframe = False
-                except:
-                    pass
+                except (NoSuchFrameException, WebDriverException) as e:
+                    # 予期されるSelenium例外: ログに記録して続行
+                    logger.warning(f"メインフレームへの復帰中にSelenium例外が発生しました: {e}")
+                except Exception as e:
+                    # 予期しない例外: 再発生させる
+                    logger.error(f"メインフレームへの復帰中に予期しない例外が発生しました: {e}")
+                    raise
         
         if not file_input:
             # メインフレームに戻る
             try:
                 browser.switch_to.default_content()
-            except:
-                pass
+            except (NoSuchFrameException, WebDriverException) as e:
+                # 予期されるSelenium例外: ログに記録して続行
+                logger.warning(f"メインフレームへの復帰中にSelenium例外が発生しました: {e}")
+            except Exception as e:
+                # 予期しない例外: 再発生させる
+                logger.error(f"メインフレームへの復帰中に予期しない例外が発生しました: {e}")
+                raise
             
             # デバッグ情報: より詳細なHTML構造を出力
             print("ファイル入力要素が見つかりませんでした。ページのHTML構造を確認します...")
@@ -421,13 +466,6 @@ def upload_to_google_form(browser, csv_path: Path):
             print(f"\nページソース（最初の3000文字）:\n{page_source_snippet}")
             
             raise Exception("ファイル入力要素が見つかりません。フォームにファイルアップロード項目が追加されているか確認してください。フォーム編集画面で「ファイルアップロード」項目を追加してください。")
-        
-        # CSVファイルのパスを絶対パスに変換
-        absolute_csv_path = csv_path.resolve()
-        
-        # ファイルの存在確認
-        if not absolute_csv_path.exists():
-            raise Exception(f"CSVファイルが見つかりません: {absolute_csv_path}")
         
         print(f"CSVファイルをアップロードします: {absolute_csv_path}")
         print(f"ファイルサイズ: {absolute_csv_path.stat().st_size} bytes")
@@ -460,8 +498,13 @@ def upload_to_google_form(browser, csv_path: Path):
             if in_iframe:
                 try:
                     browser.switch_to.default_content()
-                except:
-                    pass
+                except (NoSuchFrameException, WebDriverException) as frame_e:
+                    # 予期されるSelenium例外: ログに記録して続行
+                    logger.warning(f"メインフレームへの復帰中にSelenium例外が発生しました: {frame_e}")
+                except Exception as unexpected_e:
+                    # 予期しない例外: ログに記録するが、元の例外を優先して再発生させない
+                    # （このブロックは既に例外ハンドリング内にあるため）
+                    logger.error(f"メインフレームへの復帰中に予期しない例外が発生しました: {unexpected_e}")
             print(f"ファイルアップロード中にエラーが発生しました: {e}")
             raise Exception(f"ファイルのアップロードに失敗しました: {e}")
         
@@ -548,29 +591,45 @@ def upload_to_google_form(browser, csv_path: Path):
             # タイトルで確認
             if 'thank' in page_title or 'ありがとう' in page_title:
                 print("送信が完了しました（タイトルで確認）")
-                return
+                return {"status": "success", "message": "送信が完了しました（タイトルで確認）"}
             
             # ページテキストで確認
             for indicator in success_indicators:
                 if indicator.lower() in page_text:
                     print(f"送信が完了しました（'{indicator}'を検出）")
-                    return
+                    return {"status": "success", "message": f"送信が完了しました（'{indicator}'を検出）"}
             
             # URLが変更されたか確認（送信後、URLが変わる可能性がある）
             current_url = browser.current_url.lower()
             if 'formresponse' in current_url or 'thank' in current_url:
                 print("送信が完了しました（URL変更で確認）")
-                return
+                return {"status": "success", "message": "送信が完了しました（URL変更で確認）"}
             
-            # 送信完了の確認ができない場合でも、エラーがなければ成功とみなす
-            print("送信処理を完了しました（確認メッセージは検出されませんでしたが、エラーがないため成功とみなします）")
-            print(f"現在のURL: {browser.current_url}")
-            print(f"現在のタイトル: {browser.title}")
+            # 送信完了の確認ができない場合、警告ログを出力してunconfirmed状態を返す
+            current_url_full = browser.current_url
+            current_title = browser.title
+            logger.warning(
+                "送信完了の確認メッセージが検出されませんでした。送信状態が不明です。 "
+                f"url={current_url_full}, title={current_title}"
+            )
+            return {
+                "status": "unconfirmed",
+                "message": "confirmation message not detected",
+                "url": current_url_full,
+                "title": current_title
+            }
             
         except Exception as e:
-            print(f"送信完了の確認中にエラーが発生しましたが、処理は続行します: {e}")
+            logger.warning(f"送信完了の確認中にエラーが発生しました: {e}")
+            # エラーが発生した場合もunconfirmed状態を返す
+            return {
+                "status": "unconfirmed",
+                "message": f"confirmation check failed: {str(e)}",
+                "url": browser.current_url if hasattr(browser, 'current_url') else "unknown",
+                "title": browser.title if hasattr(browser, 'title') else "unknown"
+            }
         
     except Exception as e:
         error_message = f"Googleフォームへのアップロードに失敗しました: {e}"
         print(error_message)
-        raise Exception(error_message)
+        raise Exception(error_message) from e
