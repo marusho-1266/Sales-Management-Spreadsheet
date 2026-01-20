@@ -125,7 +125,7 @@ class SpreadsheetConfigLoader:
                     # CSVダウンロード完了後、ブラウザタブをクリーンアップ（スプレッドシートが開いたままになるのを防ぐ）
                     try:
                         self.browser.get('about:blank')
-                    except:
+                    except Exception:
                         pass
                     
                     return df
@@ -137,7 +137,7 @@ class SpreadsheetConfigLoader:
             # エラー発生時もブラウザタブをクリーンアップ
             try:
                 self.browser.get('about:blank')
-            except:
+            except Exception:
                 pass
             raise Exception(f"GID {gid} のシートの読み込みに失敗しました: {e}")
     
@@ -169,7 +169,6 @@ class SpreadsheetConfigLoader:
                 # エラーページの検出（日本語と英語の両方に対応）
                 page_text = self.browser.page_source.lower()
                 page_title = self.browser.title.lower()
-                current_url = self.browser.current_url.lower()
                 
                 # エラーページの特徴を検出
                 error_indicators = [
@@ -188,7 +187,7 @@ class SpreadsheetConfigLoader:
                     # エラーページを閉じて空白ページに移動
                     try:
                         self.browser.get('about:blank')
-                    except:
+                    except Exception:
                         pass
                     continue
                 
@@ -226,7 +225,7 @@ class SpreadsheetConfigLoader:
                             # CSVダウンロード完了後、ブラウザタブをクリーンアップ（スプレッドシートが開いたままになるのを防ぐ）
                             try:
                                 self.browser.get('about:blank')
-                            except:
+                            except Exception:
                                 pass
                             
                             return df
@@ -255,18 +254,6 @@ class SpreadsheetConfigLoader:
             Dict: JSON設定形式の辞書
         """
         sites = []
-        
-        # 列名のマッピング（旧形式との互換性のため）
-        column_mapping = {
-            'サイト名': 'name',
-            'URLパターン（カンマ区切り）': 'url_patterns',
-            '価格セレクタ（カンマ区切り）': 'price_selectors',
-            '価格除外セレクタ（カンマ区切り）': 'price_exclude_selectors',
-            '在庫セレクタ（カンマ区切り）': 'stock_selectors',
-            '在庫ありキーワード（カンマ区切り）': 'in_stock_keywords',
-            '売り切れキーワード（カンマ区切り）': 'out_of_stock_keywords',
-            '有効フラグ': 'active_flag'
-        }
         
         for _, row in df.iterrows():
             # 有効フラグをチェック
