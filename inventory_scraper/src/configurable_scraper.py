@@ -8,7 +8,7 @@ import random
 import re
 import logging
 from pathlib import Path
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 from datetime import datetime
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -33,7 +33,7 @@ class ConfigurableScraper(BaseScraper):
         self.config = config
         self.name = config.get('name', 'Unknown')
     
-    def scrape(self, url: str) -> Dict[str, any]:
+    def scrape(self, url: str) -> Dict[str, Any]:
         """
         設定ファイルに基づいて価格と在庫情報を取得する
         
@@ -94,13 +94,70 @@ class ConfigurableScraper(BaseScraper):
             return result
             
         except Exception as e:
-            # 404エラーやその他のエラーの場合
-            error_str = str(e)
-            return {
-                '仕入れ価格': 0 if '404' in error_str else -1,
-                '在庫ステータス': '売り切れ' if '404' in error_str else '不明',
-                '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            }
+            # HTTP関連の例外をチェックしてステータスコードを取得
+            status_code = None
+            is_http_error = False
+            
+            # requestsライブラリの例外をチェック
+            try:
+                import requests
+                if isinstance(e, requests.exceptions.HTTPError):
+                    is_http_error = True
+                    if hasattr(e, 'response') and e.response is not None:
+                        status_code = e.response.status_code
+            except ImportError:
+                pass
+            
+            # urllib3ライブラリの例外をチェック
+            try:
+                import urllib3.exceptions
+                if isinstance(e, urllib3.exceptions.HTTPError):
+                    is_http_error = True
+                    if hasattr(e, 'status') and e.status is not None:
+                        status_code = e.status
+            except (ImportError, AttributeError):
+                pass
+            
+            # httpxライブラリの例外をチェック
+            try:
+                import httpx  # type: ignore
+                if isinstance(e, httpx.HTTPStatusError):
+                    is_http_error = True
+                    if hasattr(e, 'response') and e.response is not None:
+                        status_code = e.response.status_code
+            except ImportError:
+                pass
+            
+            # Seleniumの例外からHTTPステータスコードを抽出する試み
+            if status_code is None:
+                error_str = str(e)
+                # エラーメッセージから404などのステータスコードを探す
+                import re
+                status_match = re.search(r'\b(40[0-9]|50[0-9])\b', error_str)
+                if status_match:
+                    try:
+                        status_code = int(status_match.group(1))
+                        is_http_error = True
+                    except (ValueError, AttributeError):
+                        pass
+            
+            # ステータスコード404の場合は在庫切れとして扱う
+            if status_code == 404:
+                logger.warning(f"  HTTP 404エラーが検出されました (URL: {url[:80]}...): {e}")
+                return {
+                    '仕入れ価格': 0,
+                    '在庫ステータス': '売り切れ',
+                    '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }
+            else:
+                # その他のエラーの場合
+                error_msg = f"HTTP {status_code}エラー" if status_code else "エラー"
+                logger.error(f"  {error_msg}が発生しました (URL: {url[:80]}...): {type(e).__name__}: {e}")
+                return {
+                    '仕入れ価格': -1,
+                    '在庫ステータス': '不明',
+                    '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }
     
     def _debug_price_elements(self, url: str):
         """
@@ -263,6 +320,95 @@ class ConfigurableScraper(BaseScraper):
             import traceback
             logger.warning(f"  エラー詳細: {traceback.format_exc()}")
 
+    def _select_best_price_candidate(
+        self, 
+        candidates: List[Dict], 
+        min_price: int = 100, 
+        reasonable_range: tuple = (1000, 10000)
+    ) -> Optional[Dict]:
+        """
+        価格候補のリストから最適な候補を選択する
+        
+        Args:
+            candidates: 価格候補のリスト（各候補は'price'と'text'キーを持つ辞書）
+            min_price: 最小価格（デフォルト: 100円）
+            reasonable_range: 合理的な価格範囲（デフォルト: (1000, 10000)）
+            
+        Returns:
+            選択された候補の辞書（'price', 'text', 'selector'キーを含む）、見つからない場合はNone
+        """
+        if not candidates:
+            return None
+        
+        # 重複を排除（同じ価格の候補を1つだけ残す）
+        seen_prices = set()
+        unique_candidates = []
+        for candidate in candidates:
+            if candidate['price'] not in seen_prices:
+                seen_prices.add(candidate['price'])
+                unique_candidates.append(candidate)
+        
+        # 関連商品セクションを除外（「この商品も注目されています」「おすすめ」などのキーワードを含む要素を除外）
+        exclude_keywords = ['この商品も注目されています', 'おすすめ', '関連商品', 'この商品も', '注目されています', 'おすすめ商品']
+        main_content_candidates = []
+        for candidate in unique_candidates:
+            text_lower = candidate['text'].lower()
+            # 除外キーワードを含まない候補を追加
+            if not any(keyword in text_lower for keyword in exclude_keywords):
+                main_content_candidates.append(candidate)
+            else:
+                logger.warning(f"    関連商品セクションの候補を除外: {candidate['price']}円 (テキスト: {candidate['text'][:50]})")
+        
+        # メインコンテンツエリアの候補がない場合、すべての候補を使用
+        if not main_content_candidates:
+            logger.warning(f"  メインコンテンツエリアの候補が見つかりませんでした。すべての候補を使用します。")
+            main_content_candidates = unique_candidates
+        
+        # メイン商品の価格を優先（「即決」「（税0円）」「送料」などのキーワードを含む価格を優先）
+        priority_keywords = ['即決', '（税0円）', '税0円', '送料', '配送方法', '入札する', '今すぐ落札']
+        priority_candidates = []
+        for candidate in main_content_candidates:
+            text = candidate['text']
+            # 優先キーワードを含む候補を追加
+            if any(keyword in text for keyword in priority_keywords):
+                priority_candidates.append(candidate)
+                logger.warning(f"    優先キーワードを含む候補を追加: {candidate['price']}円 (テキスト: {candidate['text'][:50]})")
+        
+        # 優先候補がある場合、それを使用。ない場合はすべての候補を使用
+        if priority_candidates:
+            logger.warning(f"  優先キーワードを含む候補が見つかりました（{len(priority_candidates)}件）。これらを優先します。")
+            main_content_candidates = priority_candidates
+        
+        # 価格でソート
+        main_content_candidates.sort(key=lambda x: x['price'])
+        
+        logger.warning(f"  価格候補（重複排除・関連商品除外・優先キーワード適用後、全{len(main_content_candidates)}件）: {[(c['price'], c['text'][:50]) for c in main_content_candidates]}")
+        
+        # 合理的な範囲内の価格を優先
+        reasonable_min, reasonable_max = reasonable_range
+        reasonable_candidates = [c for c in main_content_candidates if reasonable_min <= c['price'] <= reasonable_max]
+        if reasonable_candidates:
+            # 合理的な範囲内の価格から、最も小さい価格を選択
+            best_candidate = reasonable_candidates[0]
+            return {
+                'price': best_candidate['price'],
+                'text': best_candidate['text'][:100],
+                'selector': 'direct_current_price_element_reasonable',
+                **{k: v for k, v in best_candidate.items() if k not in ['price', 'text']}
+            }
+        else:
+            # 合理的な範囲内に価格がない場合、最小価格以上の候補から最も小さい価格を選択
+            if main_content_candidates and main_content_candidates[0]['price'] >= min_price:
+                best_candidate = main_content_candidates[0]
+                return {
+                    'price': best_candidate['price'],
+                    'text': best_candidate['text'][:100],
+                    'selector': 'direct_current_price_element_all',
+                    **{k: v for k, v in best_candidate.items() if k not in ['price', 'text']}
+                }
+        
+        return None
+
     def _extract_yahoo_auction_price_from_next_data(self) -> Optional[int]:
         """
         Yahoo!オークションの__NEXT_DATA__から現在価格（税額込み）を取得する
@@ -399,7 +545,7 @@ class ConfigurableScraper(BaseScraper):
             except Exception:
                 continue
         
-                # Yahoo!オークションの場合、親要素から価格を抽出するフォールバック処理
+        # Yahoo!オークションの場合、親要素から価格を抽出するフォールバック処理
         if not found_prices and 'auctions.yahoo.co.jp' in url.lower():
             try:
                 # まず、設定ファイルのセレクタで価格を探す（再試行）
@@ -469,71 +615,11 @@ class ConfigurableScraper(BaseScraper):
                         
                         # すべての候補から最適な価格を選択
                         if all_current_candidates:
-                            # 重複を排除（同じ価格の候補を1つだけ残す）
-                            seen_prices = set()
-                            unique_candidates = []
-                            for candidate in all_current_candidates:
-                                if candidate['price'] not in seen_prices:
-                                    seen_prices.add(candidate['price'])
-                                    unique_candidates.append(candidate)
-                            
-                            # 関連商品セクションを除外（「この商品も注目されています」「おすすめ」などのキーワードを含む要素を除外）
-                            exclude_keywords = ['この商品も注目されています', 'おすすめ', '関連商品', 'この商品も', '注目されています', 'おすすめ商品']
-                            main_content_candidates = []
-                            for candidate in unique_candidates:
-                                text_lower = candidate['text'].lower()
-                                # 除外キーワードを含まない候補を追加
-                                if not any(keyword in text_lower for keyword in exclude_keywords):
-                                    main_content_candidates.append(candidate)
-                                else:
-                                    logger.warning(f"    関連商品セクションの候補を除外: {candidate['price']}円 (テキスト: {candidate['text'][:50]})")
-                            
-                            # メインコンテンツエリアの候補がない場合、すべての候補を使用
-                            if not main_content_candidates:
-                                logger.warning(f"  メインコンテンツエリアの候補が見つかりませんでした。すべての候補を使用します。")
-                                main_content_candidates = unique_candidates
-                            
-                            # メイン商品の価格を優先（「即決」「（税0円）」「送料」などのキーワードを含む価格を優先）
-                            priority_keywords = ['即決', '（税0円）', '税0円', '送料', '配送方法', '入札する', '今すぐ落札']
-                            priority_candidates = []
-                            for candidate in main_content_candidates:
-                                text = candidate['text']
-                                # 優先キーワードを含む候補を追加
-                                if any(keyword in text for keyword in priority_keywords):
-                                    priority_candidates.append(candidate)
-                                    logger.warning(f"    優先キーワードを含む候補を追加: {candidate['price']}円 (テキスト: {candidate['text'][:50]})")
-                            
-                            # 優先候補がある場合、それを使用。ない場合はすべての候補を使用
-                            if priority_candidates:
-                                logger.warning(f"  優先キーワードを含む候補が見つかりました（{len(priority_candidates)}件）。これらを優先します。")
-                                main_content_candidates = priority_candidates
-                            
-                            # 価格でソート
-                            main_content_candidates.sort(key=lambda x: x['price'])
-                            
-                            logger.warning(f"  「現在」を含む価格候補（重複排除・関連商品除外・優先キーワード適用後、全{len(main_content_candidates)}件）: {[(c['price'], c['text'][:50]) for c in main_content_candidates]}")
-                            
-                            # 1,000円以上10,000円以下の価格を優先（通常のオークション価格の範囲）
-                            reasonable_candidates = [c for c in main_content_candidates if 1000 <= c['price'] <= 10000]
-                            if reasonable_candidates:
-                                # 合理的な範囲内の価格から、最も小さい価格を選択（通常、現在価格が最も小さい）
-                                best_candidate = reasonable_candidates[0]
-                                found_prices.append({
-                                    'price': best_candidate['price'],
-                                    'text': best_candidate['text'][:100],
-                                    'selector': 'direct_current_price_element_reasonable'
-                                })
-                                logger.warning(f"  「現在」を含む要素から価格を抽出（合理的範囲）: {best_candidate['price']}円 (テキスト: {best_candidate['text'][:100]})")
-                            else:
-                                # 合理的な範囲内に価格がない場合、すべての候補から最も小さい価格を選択
-                                best_candidate = main_content_candidates[0]
-                                if best_candidate['price'] >= 100:
-                                    found_prices.append({
-                                        'price': best_candidate['price'],
-                                        'text': best_candidate['text'][:100],
-                                        'selector': 'direct_current_price_element_all'
-                                    })
-                                    logger.warning(f"  「現在」を含む要素から価格を抽出（全候補）: {best_candidate['price']}円 (テキスト: {best_candidate['text'][:100]})")
+                            best_candidate = self._select_best_price_candidate(all_current_candidates)
+                            if best_candidate:
+                                found_prices.append(best_candidate)
+                                selector_type = '合理的範囲' if best_candidate['selector'] == 'direct_current_price_element_reasonable' else '全候補'
+                                logger.warning(f"  「現在」を含む要素から価格を抽出（{selector_type}）: {best_candidate['price']}円 (テキスト: {best_candidate['text'][:100]})")
                     except Exception as e:
                         logger.warning(f"  直接検索エラー: {e}")
                 
@@ -599,77 +685,22 @@ class ConfigurableScraper(BaseScraper):
                     
                     # 「現在」を含む価格候補から、最適な価格を選択
                     if current_price_candidates:
-                        # 重複を排除（同じ価格の候補を1つだけ残す）
-                        seen_prices = set()
-                        unique_candidates = []
-                        for candidate in current_price_candidates:
-                            if candidate['price'] not in seen_prices:
-                                seen_prices.add(candidate['price'])
-                                unique_candidates.append(candidate)
-                        
-                        # 関連商品セクションを除外（「この商品も注目されています」「おすすめ」などのキーワードを含む要素を除外）
-                        exclude_keywords = ['この商品も注目されています', 'おすすめ', '関連商品', 'この商品も', '注目されています', 'おすすめ商品']
-                        main_content_candidates = []
-                        for candidate in unique_candidates:
-                            text_lower = candidate['text'].lower()
-                            # 除外キーワードを含まない候補を追加
-                            if not any(keyword in text_lower for keyword in exclude_keywords):
-                                main_content_candidates.append(candidate)
-                            else:
-                                logger.warning(f"    関連商品セクションの候補を除外: {candidate['price']}円 (テキスト: {candidate['text'][:50]})")
-                        
-                        # メインコンテンツエリアの候補がない場合、すべての候補を使用
-                        if not main_content_candidates:
-                            logger.warning(f"  メインコンテンツエリアの候補が見つかりませんでした。すべての候補を使用します。")
-                            main_content_candidates = unique_candidates
-                        
-                        # メイン商品の価格を優先（「即決」「（税0円）」「送料」などのキーワードを含む価格を優先）
-                        priority_keywords = ['即決', '（税0円）', '税0円', '送料', '配送方法', '入札する', '今すぐ落札']
-                        priority_candidates = []
-                        for candidate in main_content_candidates:
-                            text = candidate['text']
-                            # 優先キーワードを含む候補を追加
-                            if any(keyword in text for keyword in priority_keywords):
-                                priority_candidates.append(candidate)
-                                logger.warning(f"    優先キーワードを含む候補を追加: {candidate['price']}円 (テキスト: {candidate['text'][:50]})")
-                        
-                        # 優先候補がある場合、それを使用。ない場合はすべての候補を使用
-                        if priority_candidates:
-                            logger.warning(f"  優先キーワードを含む候補が見つかりました（{len(priority_candidates)}件）。これらを優先します。")
-                            main_content_candidates = priority_candidates
-                        
-                        # 価格でソート
-                        main_content_candidates.sort(key=lambda x: x['price'])
-                        
-                        logger.warning(f"  「現在」を含む価格候補（親要素から、重複排除・関連商品除外・優先キーワード適用後）: {[(c['price'], c['text'][:50]) for c in main_content_candidates]}")
-                        
-                        # 1,000円以上10,000円以下の価格を優先（通常のオークション価格の範囲）
-                        reasonable_candidates = [c for c in main_content_candidates if 1000 <= c['price'] <= 10000]
-                        if reasonable_candidates:
-                            # 合理的な範囲内の価格から、最も小さい価格を選択（通常、現在価格が最も小さい）
-                            best_candidate = reasonable_candidates[0]
-                            found_prices.append({
-                                'price': best_candidate['price'],
-                                'text': best_candidate['text'][:100],
-                                'selector': f"{best_candidate['level']}_of_yen_element_with_current_reasonable"
-                            })
-                            logger.warning(f"  「現在」を含む{best_candidate['level']}要素から価格を抽出（合理的範囲）: {best_candidate['price']}円 (テキスト: {best_candidate['text'][:100]})")
+                        best_candidate = self._select_best_price_candidate(current_price_candidates)
+                        if best_candidate:
+                            # levelキーがある場合は、selectorを上書き
+                            if 'level' in best_candidate:
+                                if best_candidate['selector'] == 'direct_current_price_element_reasonable':
+                                    best_candidate['selector'] = f"{best_candidate['level']}_of_yen_element_with_current_reasonable"
+                                else:
+                                    best_candidate['selector'] = f"{best_candidate['level']}_of_yen_element_with_current"
+                            
+                            found_prices.append(best_candidate)
+                            level_str = f"{best_candidate.get('level', '')}要素から" if 'level' in best_candidate else ''
+                            selector_type = '合理的範囲' if 'reasonable' in best_candidate['selector'] else ''
+                            logger.warning(f"  「現在」を含む{level_str}価格を抽出（{selector_type}）: {best_candidate['price']}円 (テキスト: {best_candidate['text'][:100]})")
                             current_price_found = True
                         else:
-                            # 合理的な範囲内に価格がない場合、最も小さい価格を選択
-                            best_candidate = main_content_candidates[0]
-                            
-                            # 価格が100円以上の場合のみ有効（121円のような小さい価格も含むが、極端に小さい価格は除外）
-                            if best_candidate['price'] >= 100:
-                                found_prices.append({
-                                    'price': best_candidate['price'],
-                                    'text': best_candidate['text'][:100],
-                                    'selector': f"{best_candidate['level']}_of_yen_element_with_current"
-                                })
-                                logger.warning(f"  「現在」を含む{best_candidate['level']}要素から価格を抽出: {best_candidate['price']}円 (テキスト: {best_candidate['text'][:100]})")
-                                current_price_found = True
-                            else:
-                                logger.warning(f"  「現在」を含む価格候補が見つかりましたが、価格が小さすぎます: {best_candidate['price']}円 (テキスト: {best_candidate['text'][:100]})")
+                            logger.warning(f"  「現在」を含む価格候補が見つかりましたが、価格が小さすぎます")
                 
                 # 「現在」を含む価格が見つからなかった場合、通常の親要素から価格を抽出
                 if not current_price_found:
