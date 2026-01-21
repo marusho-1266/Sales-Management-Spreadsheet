@@ -95,8 +95,4 @@ def download_spreadsheet_csv(browser, retry_count=1):
         return df
         
     except Exception as e:
-        if retry_count > 0:
-            print(f"ダウンロードエラーが発生しました。リトライします... (残り{retry_count}回): {e}")
-            return download_spreadsheet_csv(browser, retry_count - 1)
-        else:
-            raise Exception(f"CSVダウンロードに失敗しました: {e}")
+        raise Exception("CSVダウンロードに失敗しました") from e

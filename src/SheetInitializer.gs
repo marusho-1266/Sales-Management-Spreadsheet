@@ -2135,8 +2135,22 @@ function recreateSheet(sheetType) {
     // 既存シートを削除
     const existingSheet = ss.getSheetByName(sheetName);
     if (existingSheet) {
+      // スプレッドシートにシートが1つしかない場合は、削除前に一時シートを作成
+      const sheets = ss.getSheets();
+      let tempSheet = null;
+      if (sheets.length === 1) {
+        tempSheet = ss.insertSheet('__temp_sheet__');
+        console.log('一時シートを作成しました（シートが1つしかないため）');
+      }
+      
       ss.deleteSheet(existingSheet);
       console.log(`${sheetName}を削除しました`);
+      
+      // 一時シートを削除（存在する場合）
+      if (tempSheet) {
+        ss.deleteSheet(tempSheet);
+        console.log('一時シートを削除しました');
+      }
     }
     
     // シートを初期化（作成）
