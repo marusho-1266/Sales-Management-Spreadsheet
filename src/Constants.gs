@@ -8,7 +8,7 @@
  * スプレッドシートID定数
  * 注意: 実際のスプレッドシートIDに置き換えてください
  * スプレッドシートのURLから取得できます:
- * https://docs.google.com/spreadsheets/d/10HmitZwb0MsjrBPH_oey4N9qe-pxvTLv9k-AJFcMEvc/edit
+ * https://docs.google.com/spreadsheets/d/<YOUR_SPREADSHEET_ID>/edit
  */
 const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID_HERE';
 

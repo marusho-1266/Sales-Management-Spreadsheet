@@ -132,8 +132,7 @@ class ConfigurableScraper(BaseScraper):
             if status_code is None:
                 error_str = str(e)
                 # エラーメッセージから404などのステータスコードを探す
-                import re
-                status_match = re.search(r'\b(40[0-9]|50[0-9])\b', error_str)
+                status_match = re.search(r'\b([4-5]\d{2})\b', error_str)
                 if status_match:
                     try:
                         status_code = int(status_match.group(1))

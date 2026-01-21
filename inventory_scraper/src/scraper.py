@@ -11,7 +11,7 @@ from typing import Dict, Optional
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 import pandas as pd
 
 
@@ -133,8 +133,21 @@ class AmazonScraper(BaseScraper):
         Returns:
             Dict[str, any]: スクレイピング結果
         """
+        page_loaded = False
         try:
-            self.browser.get(url)
+            # ページのロードを試行
+            try:
+                self.browser.get(url)
+                page_loaded = True
+            except (TimeoutException, WebDriverException) as e:
+                # ページロード前のエラー（WebDriver/Timeoutエラー）
+                # ページがロードされていないため、is_404_page()を呼ばずに安全な結果を返す
+                return {
+                    '仕入れ価格': -1,
+                    '在庫ステータス': '不明',
+                    '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }
+            
             time.sleep(random.uniform(3, 7))  # ランダムな待機時間
             
             result = {
@@ -195,15 +208,39 @@ class AmazonScraper(BaseScraper):
             result['在庫ステータス'] = stock_status
             return result
             
+        except (TimeoutException, WebDriverException) as e:
+            # WebDriver/Timeoutエラーがページロード後に発生した場合
+            # ページがロードされている可能性があるため、is_404_page()を呼ぶ
+            if page_loaded:
+                is_404 = self.is_404_page()
+                return {
+                    '仕入れ価格': 0 if is_404 else -1,
+                    '在庫ステータス': '売り切れ' if is_404 else '不明',
+                    '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }
+            else:
+                # ページがロードされていない場合は安全な結果を返す
+                return {
+                    '仕入れ価格': -1,
+                    '在庫ステータス': '不明',
+                    '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }
         except Exception as e:
-            # 404エラーやその他のエラーの場合
-            # WebDriverを使ってページの内容を確認して404を検出
-            is_404 = self.is_404_page()
-            return {
-                '仕入れ価格': 0 if is_404 else -1,
-                '在庫ステータス': '売り切れ' if is_404 else '不明',
-                '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            }
+            # その他の例外（ページロード後に発生した場合のみis_404_page()を呼ぶ）
+            if page_loaded:
+                is_404 = self.is_404_page()
+                return {
+                    '仕入れ価格': 0 if is_404 else -1,
+                    '在庫ステータス': '売り切れ' if is_404 else '不明',
+                    '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }
+            else:
+                # ページがロードされていない場合は安全な結果を返す
+                return {
+                    '仕入れ価格': -1,
+                    '在庫ステータス': '不明',
+                    '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }
 
 
 class MercariScraper(BaseScraper):
@@ -219,8 +256,21 @@ class MercariScraper(BaseScraper):
         Returns:
             Dict[str, any]: スクレイピング結果
         """
+        page_loaded = False
         try:
-            self.browser.get(url)
+            # ページのロードを試行
+            try:
+                self.browser.get(url)
+                page_loaded = True
+            except (TimeoutException, WebDriverException) as e:
+                # ページロード前のエラー（WebDriver/Timeoutエラー）
+                # ページがロードされていないため、is_404_page()を呼ばずに安全な結果を返す
+                return {
+                    '仕入れ価格': -1,
+                    '在庫ステータス': '不明',
+                    '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }
+            
             time.sleep(random.uniform(3, 7))  # ランダムな待機時間
             
             result = {
@@ -276,15 +326,39 @@ class MercariScraper(BaseScraper):
             result['在庫ステータス'] = stock_status
             return result
             
+        except (TimeoutException, WebDriverException) as e:
+            # WebDriver/Timeoutエラーがページロード後に発生した場合
+            # ページがロードされている可能性があるため、is_404_page()を呼ぶ
+            if page_loaded:
+                is_404 = self.is_404_page()
+                return {
+                    '仕入れ価格': 0 if is_404 else -1,
+                    '在庫ステータス': '売り切れ' if is_404 else '不明',
+                    '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }
+            else:
+                # ページがロードされていない場合は安全な結果を返す
+                return {
+                    '仕入れ価格': -1,
+                    '在庫ステータス': '不明',
+                    '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }
         except Exception as e:
-            # 404エラーやその他のエラーの場合
-            # WebDriverを使ってページの内容を確認して404を検出
-            is_404 = self.is_404_page()
-            return {
-                '仕入れ価格': 0 if is_404 else -1,
-                '在庫ステータス': '売り切れ' if is_404 else '不明',
-                '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            }
+            # その他の例外（ページロード後に発生した場合のみis_404_page()を呼ぶ）
+            if page_loaded:
+                is_404 = self.is_404_page()
+                return {
+                    '仕入れ価格': 0 if is_404 else -1,
+                    '在庫ステータス': '売り切れ' if is_404 else '不明',
+                    '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }
+            else:
+                # ページがロードされていない場合は安全な結果を返す
+                return {
+                    '仕入れ価格': -1,
+                    '在庫ステータス': '不明',
+                    '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }
 
 
 class YahooScraper(BaseScraper):
@@ -300,8 +374,21 @@ class YahooScraper(BaseScraper):
         Returns:
             Dict[str, any]: スクレイピング結果
         """
+        page_loaded = False
         try:
-            self.browser.get(url)
+            # ページのロードを試行
+            try:
+                self.browser.get(url)
+                page_loaded = True
+            except (TimeoutException, WebDriverException) as e:
+                # ページロード前のエラー（WebDriver/Timeoutエラー）
+                # ページがロードされていないため、is_404_page()を呼ばずに安全な結果を返す
+                return {
+                    '仕入れ価格': -1,
+                    '在庫ステータス': '不明',
+                    '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }
+            
             time.sleep(random.uniform(3, 7))  # ランダムな待機時間
             
             result = {
@@ -359,15 +446,39 @@ class YahooScraper(BaseScraper):
             result['在庫ステータス'] = stock_status
             return result
             
+        except (TimeoutException, WebDriverException) as e:
+            # WebDriver/Timeoutエラーがページロード後に発生した場合
+            # ページがロードされている可能性があるため、is_404_page()を呼ぶ
+            if page_loaded:
+                is_404 = self.is_404_page()
+                return {
+                    '仕入れ価格': 0 if is_404 else -1,
+                    '在庫ステータス': '売り切れ' if is_404 else '不明',
+                    '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }
+            else:
+                # ページがロードされていない場合は安全な結果を返す
+                return {
+                    '仕入れ価格': -1,
+                    '在庫ステータス': '不明',
+                    '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }
         except Exception as e:
-            # 404エラーやその他のエラーの場合
-            # WebDriverを使ってページの内容を確認して404を検出
-            is_404 = self.is_404_page()
-            return {
-                '仕入れ価格': 0 if is_404 else -1,
-                '在庫ステータス': '売り切れ' if is_404 else '不明',
-                '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            }
+            # その他の例外（ページロード後に発生した場合のみis_404_page()を呼ぶ）
+            if page_loaded:
+                is_404 = self.is_404_page()
+                return {
+                    '仕入れ価格': 0 if is_404 else -1,
+                    '在庫ステータス': '売り切れ' if is_404 else '不明',
+                    '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }
+            else:
+                # ページがロードされていない場合は安全な結果を返す
+                return {
+                    '仕入れ価格': -1,
+                    '在庫ステータス': '不明',
+                    '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                }
 
 
 def get_scraper(url: str, browser, config_loader=None) -> BaseScraper:
