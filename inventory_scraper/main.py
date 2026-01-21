@@ -2,9 +2,16 @@
 在庫管理スクレイピングシステム メインエントリーポイント
 """
 import sys
+import os
 import logging
 from pathlib import Path
 from datetime import datetime
+
+# exe実行時は作業ディレクトリをexeファイルの場所に変更
+if getattr(sys, 'frozen', False):
+    # exe実行時: sys.executableがexeファイルのパス
+    exe_dir = Path(sys.executable).parent.resolve()
+    os.chdir(exe_dir)
 
 # ログ設定
 from src.config import LOGS_DIR, LOG_LEVEL

@@ -3,11 +3,32 @@
 環境変数から設定を読み込む
 """
 import os
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
+# exe実行時と通常実行時でベースディレクトリを適切に取得
+def get_base_dir():
+    """
+    exe実行時と通常実行時で適切なベースディレクトリを取得する
+    
+    Returns:
+        Path: ベースディレクトリのPathオブジェクト
+    """
+    if getattr(sys, 'frozen', False):
+        # exe実行時: sys.executableがexeファイルのパス
+        # exeファイルのディレクトリをベースディレクトリとする
+        base_dir = Path(sys.executable).parent.resolve()
+    else:
+        # 通常実行時: このファイルの親の親（inventory_scraper）をベースディレクトリとする
+        base_dir = Path(__file__).parent.parent.resolve()
+    return base_dir
+
+# ベースディレクトリを取得
+BASE_DIR = get_base_dir()
+
 # .envファイルを読み込む
-env_path = Path(__file__).parent.parent / '.env'
+env_path = BASE_DIR / '.env'
 load_dotenv(env_path)
 
 # スプレッドシート情報
@@ -38,8 +59,8 @@ LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 ENABLE_DEBUG_MODE = os.getenv('ENABLE_DEBUG_MODE', 'false').lower() in ('true', '1', 'yes')
 
 # データ保存先
-DATA_DIR = Path(__file__).parent.parent / 'data'
-LOGS_DIR = Path(__file__).parent.parent / 'logs'
+DATA_DIR = BASE_DIR / 'data'
+LOGS_DIR = BASE_DIR / 'logs'
 
 # ディレクトリが存在しない場合は作成
 DATA_DIR.mkdir(parents=True, exist_ok=True)

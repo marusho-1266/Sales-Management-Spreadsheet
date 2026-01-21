@@ -30,6 +30,26 @@ def download_spreadsheet_csv(browser, retry_count=1):
     
     # ダウンロード前のファイル一覧を取得
     data_dir = Path(DATA_DIR).resolve()
+    
+    # ダウンロード前に既存のCSVファイル（upload_data.csv以外）を削除
+    # これにより、実行のたびに (1), (2) のような番号付きファイルが増えるのを防ぐ
+    import logging
+    logger = logging.getLogger(__name__)
+    existing_csv_files = list(data_dir.glob('*.csv'))
+    protected_file = data_dir / 'upload_data.csv'  # スクレイピング結果ファイルは保護
+    deleted_count = 0
+    for csv_file in existing_csv_files:
+        if csv_file != protected_file:
+            try:
+                csv_file.unlink()
+                deleted_count += 1
+                logger.debug(f"既存のCSVファイルを削除しました: {csv_file.name}")
+            except Exception as e:
+                logger.warning(f"既存のCSVファイルの削除に失敗しました: {csv_file.name}, エラー: {e}")
+    
+    if deleted_count > 0:
+        logger.info(f"ダウンロード前に既存のCSVファイル {deleted_count} 件を削除しました")
+    
     before_files = set(data_dir.glob('*.csv'))
     
     # ダウンロードフォルダの最新ファイルを記録

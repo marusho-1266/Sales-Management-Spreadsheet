@@ -120,6 +120,43 @@ inventory_scraper/
 - スクレイピング時は各アクセスごとに3-7秒のランダムな待機時間を入れています
 - 大量のURLを処理する場合は、実行時間が長くなる可能性があります
 
+## exe化（配布用）
+
+Pythonがインストールされていない端末でも利用できるように、exe化することができます。
+
+### exe化の方法
+
+詳細な手順は以下のドキュメントを参照してください：
+- [スクレイパーexe化セットアップ手順書](../doc/スクレイパーexe化セットアップ手順書.md)
+
+#### 簡単なexe化手順
+
+1. PyInstallerをインストール
+   ```bash
+   pip install pyinstaller
+   ```
+
+2. exe化を実行
+   ```bash
+   # Windowsの場合
+   build_exe.bat
+   
+   # または手動で実行
+   pyinstaller InventoryScraper.spec
+   ```
+
+3. 生成されたexeファイルは`dist/InventoryScraper.exe`にあります
+
+### 配布用パッケージの作成
+
+exe化後、以下のファイルを含めて配布してください：
+- `dist/InventoryScraper.exe`
+- `config/scraper_config.json`
+- `.env.example`（存在する場合）
+
+利用者向けのセットアップ手順は以下を参照してください：
+- [スクレイパー利用者向けセットアップ手順](../doc/スクレイパー利用者向けセットアップ手順.md)
+
 ## トラブルシューティング
 
 ### ChromeDriverのエラー

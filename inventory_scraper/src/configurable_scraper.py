@@ -949,7 +949,15 @@ class ScraperConfigLoader:
             use_spreadsheet: スプレッドシートから設定を読み込むかどうか（デフォルト: True）
         """
         if config_path is None:
-            config_path = Path(__file__).parent.parent / 'config' / 'scraper_config.json'
+            # exe実行時と通常実行時で適切なベースディレクトリを取得
+            import sys
+            if getattr(sys, 'frozen', False):
+                # exe実行時: sys.executableがexeファイルのパス
+                base_dir = Path(sys.executable).parent.resolve()
+            else:
+                # 通常実行時: このファイルの親の親（inventory_scraper）をベースディレクトリとする
+                base_dir = Path(__file__).parent.parent.resolve()
+            config_path = base_dir / 'config' / 'scraper_config.json'
         self.config_path = config_path
         self.browser = browser
         self.use_spreadsheet = use_spreadsheet
