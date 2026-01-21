@@ -1764,8 +1764,6 @@ function setupCustomMenu() {
         .addSeparator()
         .addItem('個別シート初期化・再作成', 'showIndividualSheetInitializationMenu')
         .addItem('データバックアップ', 'showDataBackupMenu')
-        .addSeparator()
-        .addItem('📋 Googleフォーム作成', 'showWebScrapingFormCreationMenu')
     )
     .addSubMenu(
       ui.createMenu('⚙️ 設定')

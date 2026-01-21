@@ -15,9 +15,6 @@ SPREADSHEET_ID = os.getenv('SPREADSHEET_ID', '')
 SHEET_GID = os.getenv('SHEET_GID', '0')  # 在庫管理シートのGID
 SUPPLIER_SHEET_GID = os.getenv('SUPPLIER_SHEET_GID', '')  # 仕入れ元マスターシートのGID（空の場合は自動検出）
 
-# Googleフォーム情報
-GOOGLE_FORM_URL = os.getenv('GOOGLE_FORM_URL', '')
-
 # Google Apps Script WebアプリURL（直接更新用）
 GAS_WEB_APP_URL = os.getenv('GAS_WEB_APP_URL', '')
 

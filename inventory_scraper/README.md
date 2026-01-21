@@ -7,8 +7,8 @@ Google Cloud Platform (GCP) やGASのウェブアプリ公開機能を利用せ�
 
 1. **データ読み込み**: スプレッドシートの「在庫管理」シートをCSVとして取得
 2. **スクレイピング**: 各ECサイト（Amazon, Mercari, Yahoo!等）をスクレイピングし、価格・在庫情報を取得
-3. **データ書き込み**: 結果CSVをGoogleフォーム経由で送信
-4. **自動更新**: GASの「フォーム送信時トリガー」が発火し、CSV内容をスプレッドシートに反映
+3. **データ書き込み**: 結果CSVをGAS Webアプリ経由で直接送信
+4. **自動更新**: GAS WebアプリがCSV内容をスプレッドシートに反映
 
 ## セットアップ
 
@@ -16,7 +16,7 @@ Google Cloud Platform (GCP) やGASのウェブアプリ公開機能を利用せ�
 
 - Python 3.10以上
 - Google Chrome（ローカルにインストール済み）
-- Googleアカウント（スプレッドシートとフォームへのアクセス権限）
+- Googleアカウント（スプレッドシートへのアクセス権限）
 
 ### 2. インストール
 
@@ -40,8 +40,8 @@ cp .env.example .env
 SPREADSHEET_ID=あなたのスプレッドシートID
 SHEET_GID=0
 
-# Googleフォーム情報
-GOOGLE_FORM_URL=https://docs.google.com/forms/d/e/xxxxx/viewform
+# Google Apps Script WebアプリURL（必須）
+GAS_WEB_APP_URL=https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec
 
 # ローカルChrome設定
 CHROME_PROFILE_PATH=C:\Users\Username\AppData\Local\Google\Chrome\User Data
@@ -54,20 +54,11 @@ DOWNLOAD_FOLDER=C:\Users\Username\Downloads
 LOG_LEVEL=INFO
 ```
 
-### 4. Googleフォームの作成
-
-1. Googleフォームを新規作成
-2. 「ファイルアップロード」タイプの質問を追加
-3. フォームURLを`.env`の`GOOGLE_FORM_URL`に設定
-
-### 5. GAS側の設定
+### 4. GAS側の設定
 
 1. スプレッドシートの「拡張機能」→「Apps Script」を開く
-2. `WebScrapingFormHandler.gs`を追加
-3. `setupWebScrapingFormTrigger()`関数を実行してトリガーを設定
-   - または手動でトリガーを設定：
-     - 関数: `onFormSubmit`
-     - イベント: フォームから、送信時
+2. `WebScrapingDirectUpdate.gs`が存在することを確認
+3. GAS Webアプリとしてデプロイし、`GAS_WEB_APP_URL`を取得して`.env`に設定
 
 ## 使用方法
 
@@ -83,8 +74,7 @@ python main.py
 2. 「仕入れ元URL」列が空でない行を抽出
 3. 各URLに対してスクレイピングを実行
 4. 結果をCSVファイルに保存
-5. GoogleフォームにCSVファイルをアップロード
-6. GASのトリガーが自動実行され、スプレッドシートを更新
+5. GAS WebアプリにCSVデータをPOST送信してスプレッドシートを直接更新
 
 ## ディレクトリ構成
 
@@ -98,7 +88,8 @@ inventory_scraper/
 │   ├── browser.py         # Seleniumドライバー初期化・設定
 │   ├── downloader.py      # スプレッドシートDL処理
 │   ├── scraper.py         # スクレイピングロジック（Strategyパターン）
-│   └── uploader.py        # Googleフォームへのアップロード処理
+│   ├── uploader.py        # CSV保存処理
+│   └── spreadsheet_updater.py  # GAS Webアプリ経由の更新処理
 ├── .env                   # 環境変数（URL, パス等）
 ├── main.py                # エントリーポイント
 └── requirements.txt
@@ -116,7 +107,7 @@ inventory_scraper/
 - **スクレイピング失敗**: 
   - ページが存在しない(404)場合 → 在庫ステータス「売り切れ」、仕入れ価格「0」
   - 要素が見つからない場合 → 仕入れ価格「-1」、在庫ステータス「不明」
-- **アップロード失敗**: 例外をキャッチし、ローカルにCSVを残したままログを出力
+- **更新失敗**: 例外をキャッチし、ローカルにCSVを残したままログを出力
 
 ## ログ
 
@@ -139,6 +130,6 @@ inventory_scraper/
 
 `.env`の`DOWNLOAD_FOLDER`が正しく設定されているか確認してください。
 
-### フォーム送信が失敗する
+### GAS Webアプリ更新が失敗する
 
-Googleフォームのセレクタが変更されている可能性があります。`uploader.py`のセレクタを確認してください。
+`.env`の`GAS_WEB_APP_URL`が正しく設定されているか確認してください。また、GAS側で`doPost`関数が正しくデプロイされているか確認してください。
