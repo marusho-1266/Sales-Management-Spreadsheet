@@ -6,6 +6,7 @@ Google Apps ScriptのWebアプリを直接呼び出してスプレッドシー�
 POSTリクエストでCSVデータを送信し、スプレッドシートを更新します。
 """
 import json
+import os
 import requests
 from pathlib import Path
 
@@ -28,6 +29,19 @@ def update_spreadsheet_via_gas(browser=None, csv_path: Path = None, script_url: 
         # Google Apps ScriptのWebアプリURLを確認
         if not script_url:
             raise Exception("Google Apps ScriptのWebアプリURLが指定されていません。.envファイルにGAS_WEB_APP_URLを設定してください。")
+        
+        # CSVファイルパスの検証
+        if not csv_path:
+            raise Exception("CSVファイルパス（csv_path）が指定されていません。")
+        
+        # Pathオブジェクトに変換して検証
+        csv_path_obj = Path(csv_path)
+        if not csv_path_obj.is_file():
+            raise Exception(f"CSVファイルが見つかりません、またはファイルではありません: {csv_path}")
+        
+        # ファイルの読み取り可能性を確認
+        if not os.access(csv_path, os.R_OK):
+            raise Exception(f"CSVファイルを読み取ることができません（読み取り権限がありません）: {csv_path}")
         
         # CSVファイルを読み込む
         with open(csv_path, 'r', encoding='utf-8-sig') as f:
@@ -164,6 +178,9 @@ def _send_csv_in_chunks(csv_content: str, script_url: str, max_chunk_size: int):
     
     print(f"CSVデータを{estimated_chunk_count}チャンクに分割して送信します（1チャンクあたり約{lines_per_chunk}行）")
     
+    # 失敗したチャンクを記録するリスト
+    failed_chunks = []
+    
     # チャンクごとに送信
     for i in range(0, len(data_lines), lines_per_chunk):
         chunk_lines = data_lines[i:i + lines_per_chunk]
@@ -174,10 +191,26 @@ def _send_csv_in_chunks(csv_content: str, script_url: str, max_chunk_size: int):
         try:
             _send_csv_post(chunk_content, script_url)
         except Exception as e:
+            error_info = {
+                'chunk_number': chunk_number,
+                'error': str(e),
+                'chunk_content_preview': chunk_content[:200] if chunk_content else ''  # 最初の200文字を記録
+            }
+            failed_chunks.append(error_info)
             print(f"⚠️  チャンク {chunk_number} の送信でエラーが発生しました: {e}")
-            # チャンク送信の失敗は警告として記録し、次のチャンクを続行
-            # 完全な失敗にする場合は例外を再スロー
-            continue
+            # エラーを記録し、次のチャンクを続行
+    
+    # 失敗したチャンクがある場合は例外を発生させる
+    if failed_chunks:
+        failed_chunk_numbers = [info['chunk_number'] for info in failed_chunks]
+        error_messages = [f"チャンク {info['chunk_number']}: {info['error']}" for info in failed_chunks]
+        error_message = (
+            f"チャンク送信で部分的な失敗が発生しました。\n"
+            f"失敗したチャンク: {', '.join(map(str, failed_chunk_numbers))}\n"
+            f"詳細:\n" + "\n".join(f"  - {msg}" for msg in error_messages)
+        )
+        print(f"❌ {error_message}")
+        raise Exception(error_message)
     
     print("すべてのチャンクの送信が完了しました")
 
