@@ -84,6 +84,40 @@ class BaseScraper(ABC):
             except ValueError:
                 return None
         return None
+    
+    def is_404_page(self) -> bool:
+        """
+        WebDriverの現在のページが404エラーページかどうかを判定する
+        
+        Returns:
+            bool: 404エラーページの場合はTrue、それ以外はFalse
+        """
+        try:
+            # current_url、page_source、titleを確認
+            current_url = self.browser.current_url.lower()
+            page_source = self.browser.page_source.lower()
+            title = self.browser.title.lower()
+            
+            # 404を示すマーカーを検索
+            error_markers = ['404', 'not found', 'ページが見つかりません', 'ページが見つかません', 
+                           'page not found', 'お探しのページは見つかりませんでした']
+            
+            # URLに404が含まれているか確認
+            if any(marker in current_url for marker in ['404', 'notfound', 'error']):
+                return True
+            
+            # タイトルに404マーカーが含まれているか確認
+            if any(marker in title for marker in error_markers):
+                return True
+            
+            # ページソースに404マーカーが含まれているか確認
+            if any(marker in page_source for marker in error_markers):
+                return True
+            
+            return False
+        except Exception:
+            # エラーが発生した場合は404ではないと判定
+            return False
 
 
 class AmazonScraper(BaseScraper):
@@ -163,9 +197,11 @@ class AmazonScraper(BaseScraper):
             
         except Exception as e:
             # 404エラーやその他のエラーの場合
+            # WebDriverを使ってページの内容を確認して404を検出
+            is_404 = self.is_404_page()
             return {
-                '仕入れ価格': 0 if '404' in str(e) else -1,
-                '在庫ステータス': '売り切れ' if '404' in str(e) else '不明',
+                '仕入れ価格': 0 if is_404 else -1,
+                '在庫ステータス': '売り切れ' if is_404 else '不明',
                 '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             }
 
@@ -242,9 +278,11 @@ class MercariScraper(BaseScraper):
             
         except Exception as e:
             # 404エラーやその他のエラーの場合
+            # WebDriverを使ってページの内容を確認して404を検出
+            is_404 = self.is_404_page()
             return {
-                '仕入れ価格': 0 if '404' in str(e) else -1,
-                '在庫ステータス': '売り切れ' if '404' in str(e) else '不明',
+                '仕入れ価格': 0 if is_404 else -1,
+                '在庫ステータス': '売り切れ' if is_404 else '不明',
                 '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             }
 
@@ -323,9 +361,11 @@ class YahooScraper(BaseScraper):
             
         except Exception as e:
             # 404エラーやその他のエラーの場合
+            # WebDriverを使ってページの内容を確認して404を検出
+            is_404 = self.is_404_page()
             return {
-                '仕入れ価格': 0 if '404' in str(e) else -1,
-                '在庫ステータス': '売り切れ' if '404' in str(e) else '不明',
+                '仕入れ価格': 0 if is_404 else -1,
+                '在庫ステータス': '売り切れ' if is_404 else '不明',
                 '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             }
 
@@ -443,11 +483,15 @@ def scrape_urls(df: pd.DataFrame, browser) -> pd.DataFrame:
             })
     
     # 結果をDataFrameに変換
-    result_df = pd.DataFrame(results)
-    
-    # 列の順序を調整
     columns_order = ['仕入れ元URL', '仕入れ価格', '在庫ステータス', '最終更新日時']
-    result_df = result_df[columns_order]
+    
+    if not results:
+        # resultsが空の場合は、期待されるカラムを持つ空のDataFrameを作成
+        result_df = pd.DataFrame(columns=columns_order)
+    else:
+        # resultsが空でない場合は、DataFrameを作成してからreindexでカラムを保証
+        result_df = pd.DataFrame(results)
+        result_df = result_df.reindex(columns=columns_order)
     
     print(f"スクレイピング完了: {len(result_df)}件の結果を取得しました")
     return result_df
