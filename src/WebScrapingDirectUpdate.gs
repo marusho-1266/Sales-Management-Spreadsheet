@@ -11,8 +11,90 @@
  */
 
 /**
+ * Webアプリのエントリーポイント（POSTリクエスト）
+ * Python側からPOSTリクエストでCSVデータを受信する
+ * 
+ * @param {GoogleAppsScript.Events.DoPost} e - POSTリクエストイベント
+ * @returns {TextOutput} JSONレスポンス
+ */
+function doPost(e) {
+  try {
+    console.log('=== doPost関数が呼び出されました ===');
+    
+    // POSTボディからCSVデータを取得
+    let csvContent = null;
+    
+    // JSON形式のPOSTボディの場合
+    if (e.postData && e.postData.type === 'application/json') {
+      try {
+        const jsonData = JSON.parse(e.postData.contents);
+        csvContent = jsonData.csvData;
+        console.log('JSON形式のPOSTボディからCSVデータを取得しました（長さ:', csvContent ? csvContent.length : 0, '文字）');
+      } catch (parseError) {
+        console.error('JSON解析エラー:', parseError);
+        return ContentService.createTextOutput(JSON.stringify({
+          success: false,
+          error: 'JSON解析に失敗しました: ' + parseError.message
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+    // プレーンテキストの場合（フォールバック）
+    else if (e.postData && e.postData.contents) {
+      csvContent = e.postData.contents;
+      console.log('プレーンテキストのPOSTボディからCSVデータを取得しました（長さ:', csvContent.length, '文字）');
+    }
+    
+    if (!csvContent || csvContent.trim() === '') {
+      const errorMsg = 'POSTボディにCSVデータが含まれていません';
+      console.error(errorMsg);
+      return ContentService.createTextOutput(JSON.stringify({
+        success: false,
+        error: errorMsg
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // CSVをパース
+    let csvRows;
+    try {
+      csvRows = parseCsvWithMultilineSupport(csvContent);
+      console.log('CSVデータをパースしました:', csvRows.length, '行');
+    } catch (parseError) {
+      console.error('CSVパースエラー:', parseError);
+      return ContentService.createTextOutput(JSON.stringify({
+        success: false,
+        error: 'CSVパースに失敗しました: ' + parseError.message
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    if (!csvRows || csvRows.length === 0) {
+      const errorMsg = 'CSVデータが空です';
+      console.error(errorMsg);
+      return ContentService.createTextOutput(JSON.stringify({
+        success: false,
+        error: errorMsg
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // スプレッドシートを更新
+    const result = updateInventorySheet(csvRows);
+    
+    // 結果をJSON形式で返す
+    return ContentService.createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
+    
+  } catch (error) {
+    console.error('doPost関数でエラーが発生しました:', error, error.stack);
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      error: 'サーバーエラーが発生しました: ' + error.message
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+/**
  * Webアプリのエントリーポイント（GETリクエスト）
  * Google Apps ScriptのWebアプリとして公開する際に必要
+ * 既存の互換性のために維持
  * 
  * @param {GoogleAppsScript.Events.DoGet} e - GETリクエストイベント
  * @returns {HtmlOutput|TextOutput} レスポンス
