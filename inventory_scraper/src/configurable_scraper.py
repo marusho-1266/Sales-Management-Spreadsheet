@@ -64,6 +64,11 @@ class ConfigurableScraper(BaseScraper):
                 if price:
                     logger.info(f"  Yahoo!オークション: __NEXT_DATA__から価格を取得しました: {price}円")
 
+            if not price and '/shops/product/' in url.lower():
+                price = self._extract_mercari_shop_price()
+                if price:
+                    logger.info(f"  メルカリSHOP: 価格を取得しました: {price}円")
+
             if not price:
                 price_selectors = self.config.get('price_selectors', [])
                 price = self._extract_price_with_selectors(price_selectors, url)
@@ -468,6 +473,190 @@ class ConfigurableScraper(BaseScraper):
 
         return None
     
+    def _extract_mercari_shop_price(self) -> Optional[int]:
+        """
+        メルカリSHOPページのメイン価格を取得する
+        「送料込み」付近やタイトル付近から優先的に抽出
+        「¥」記号を含む価格パターンを優先的に検索
+        """
+        exclude_selectors = self.config.get('price_exclude_selectors', [])
+        exclude_keywords = [
+            'このショップの商品',
+            'おすすめ',
+            'ランキング',
+            'この商品を見ている人に',
+            'shopsゲーム',
+            '人気の商品'
+        ]
+        
+        # 方法1: 「送料込み」を含む要素の親要素から「¥」を含む価格を取得
+        try:
+            shipping_elements = self.browser.find_elements(By.XPATH, "//*[contains(text(), '送料込み')]")
+            for shipping_el in shipping_elements:
+                try:
+                    # 親要素を取得
+                    parent = shipping_el.find_element(By.XPATH, './..')
+                    parent_text = parent.text.strip()
+                    
+                    # 除外キーワードをチェック
+                    if any(keyword in parent_text.lower() for keyword in exclude_keywords):
+                        continue
+                    
+                    # 「¥」を含む価格パターンを先に探す（優先）
+                    # 価格が見つかった場合は除外セレクタチェックをスキップ
+                    price = self._extract_yen_price_from_text(parent_text)
+                    if price:
+                        # 価格が見つかった場合は除外セレクタチェックをスキップして返す
+                        logger.debug(f"  メルカリSHOP: 「送料込み」親要素から価格を取得: {price}円")
+                        return price
+                    
+                    # 価格が見つからなかった場合のみ除外セレクタをチェック
+                    if self._is_excluded_element(parent, exclude_selectors):
+                        continue
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        
+        # 方法2: h1要素の近傍から「¥」を含む価格を取得
+        try:
+            h1_element = self.browser.find_element(By.TAG_NAME, 'h1')
+            if h1_element:
+                # h1の親の親要素（商品情報コンテナ）を取得
+                h1_parent = h1_element.find_element(By.XPATH, './..')
+                h1_grandparent = h1_parent.find_element(By.XPATH, './..')
+                
+                # 祖父要素の子要素を探索して「¥」を含む価格を探す
+                children = h1_grandparent.find_elements(By.XPATH, './*')
+                for child in children:
+                    try:
+                        child_text = child.text.strip()
+                        if not child_text:
+                            continue
+                        
+                        # 除外キーワードをチェック
+                        if any(keyword in child_text.lower() for keyword in exclude_keywords):
+                            continue
+                        
+                        # 除外セレクタをチェック
+                        if self._is_excluded_element(child, exclude_selectors):
+                            continue
+                        
+                        # 「¥」を含む価格パターンを探す
+                        price = self._extract_yen_price_from_text(child_text)
+                        if price:
+                            logger.debug(f"  メルカリSHOP: h1近傍から価格を取得: {price}円")
+                            return price
+                    except Exception:
+                        continue
+        except Exception:
+            pass
+        
+        # 方法3: フォールバック - 既存のロジック（「¥」を含む価格を優先）
+        try:
+            shipping_elements = self.browser.find_elements(By.XPATH, "//*[contains(text(), '送料込み')]")
+            for shipping_el in shipping_elements:
+                current = shipping_el
+                for _ in range(4):
+                    try:
+                        text = current.text.strip()
+                        text_lower = text.lower()
+                        if text and not any(keyword in text_lower for keyword in exclude_keywords):
+                            if not self._is_excluded_element(current, exclude_selectors):
+                                # まず「¥」を含む価格を探す
+                                price = self._extract_yen_price_from_text(text)
+                                if price:
+                                    return price
+                                # 見つからなければ従来のロジック
+                                price = self._extract_first_price_from_text(text)
+                                if price:
+                                    return price
+                        current = current.find_element(By.XPATH, './..')
+                    except Exception:
+                        break
+        except Exception:
+            pass
+        
+        return None
+    
+    def _extract_yen_price_from_text(self, text: str) -> Optional[int]:
+        """
+        テキストから「¥」に続く価格を抽出する
+        
+        Args:
+            text: 検索対象のテキスト
+            
+        Returns:
+            Optional[int]: 抽出された価格、見つからない場合はNone
+        """
+        if not text:
+            return None
+        
+        # 「¥」または「￥」に続く数字パターンをマッチ（例: ¥4,800 や ¥4800）
+        matches = re.findall(r'[¥￥]\s*([0-9,]+)', text)
+        if matches:
+            try:
+                return int(matches[0].replace(',', ''))
+            except (ValueError, TypeError):
+                pass
+        
+        return None
+
+    def _extract_first_price_from_text(self, text: str) -> Optional[int]:
+        """
+        テキストから最初の価格を抽出する
+        """
+        if not text:
+            return None
+        matches = re.findall(r'\d{1,3}(?:,\d{3})*', text)
+        if not matches:
+            return None
+        try:
+            return int(matches[0].replace(',', ''))
+        except (ValueError, TypeError):
+            return None
+    
+    def _extract_price_from_container(self, container, exclude_selectors: List[str]) -> Optional[int]:
+        """
+        指定コンテナ内の価格を抽出（除外セレクタ考慮）
+        """
+        try:
+            price_elements = container.find_elements(By.XPATH, ".//*[contains(text(), '¥')]")
+            for price_el in price_elements:
+                try:
+                    price_text = price_el.text.strip()
+                    price = self.extract_price(price_text)
+                    if not price or price <= 0:
+                        continue
+                    if self._is_excluded_element(price_el, exclude_selectors):
+                        continue
+                    return price
+                except Exception:
+                    continue
+        except Exception:
+            return None
+        return None
+    
+    def _is_excluded_element(self, element, exclude_selectors: List[str]) -> bool:
+        """
+        要素が除外セレクタに該当するか判定
+        """
+        for exclude_selector in exclude_selectors:
+            try:
+                if element.find_elements(By.CSS_SELECTOR, exclude_selector):
+                    return True
+                current = element
+                for _ in range(3):
+                    try:
+                        current = current.find_element(By.XPATH, './..')
+                        if current.find_elements(By.CSS_SELECTOR, exclude_selector):
+                            return True
+                    except Exception:
+                        break
+            except Exception:
+                continue
+        return False
+    
     def _extract_price_with_selectors(self, selectors: List[str], url: str = '') -> Optional[int]:
         """
         複数のセレクタを試行して価格を取得する
@@ -497,6 +686,68 @@ class ConfigurableScraper(BaseScraper):
                 
                 for element in elements:
                     try:
+                        # 除外セレクタのチェック（要素またはその親要素が除外セレクタに該当するか確認）
+                        should_exclude = False
+                        for exclude_selector in exclude_selectors:
+                            try:
+                                # 要素自体が除外セレクタに該当するか確認
+                                if element.find_elements(By.CSS_SELECTOR, exclude_selector):
+                                    should_exclude = True
+                                    break
+                                
+                                # 親要素を再帰的にチェック（最大5階層まで）
+                                current_element = element
+                                for depth in range(5):
+                                    try:
+                                        parent = current_element.find_element(By.XPATH, './..')
+                                        # 親要素自体が除外セレクタに該当するか確認
+                                        if parent.find_elements(By.CSS_SELECTOR, exclude_selector):
+                                            should_exclude = True
+                                            break
+                                        # 親要素のクラス名やIDが除外セレクタに含まれるか確認
+                                        parent_class = parent.get_attribute('class') or ''
+                                        parent_id = parent.get_attribute('id') or ''
+                                        # [class*='xxx']形式のセレクタをチェック
+                                        if '[class*=' in exclude_selector:
+                                            class_pattern = exclude_selector.split("'")[1] if "'" in exclude_selector else exclude_selector.split('"')[1] if '"' in exclude_selector else ''
+                                            if class_pattern and class_pattern in parent_class:
+                                                should_exclude = True
+                                                break
+                                        # [id*='xxx']形式のセレクタをチェック
+                                        if '[id*=' in exclude_selector:
+                                            id_pattern = exclude_selector.split("'")[1] if "'" in exclude_selector else exclude_selector.split('"')[1] if '"' in exclude_selector else ''
+                                            if id_pattern and id_pattern in parent_id:
+                                                should_exclude = True
+                                                break
+                                        current_element = parent
+                                    except:
+                                        break
+                                
+                                if should_exclude:
+                                    break
+                                
+                                # 要素自体のクラス名やIDが除外セレクタに含まれるか確認
+                                element_class = element.get_attribute('class') or ''
+                                element_id = element.get_attribute('id') or ''
+                                # [class*='xxx']形式のセレクタをチェック
+                                if '[class*=' in exclude_selector:
+                                    class_pattern = exclude_selector.split("'")[1] if "'" in exclude_selector else exclude_selector.split('"')[1] if '"' in exclude_selector else ''
+                                    if class_pattern and class_pattern in element_class:
+                                        should_exclude = True
+                                        break
+                                # [id*='xxx']形式のセレクタをチェック
+                                if '[id*=' in exclude_selector:
+                                    id_pattern = exclude_selector.split("'")[1] if "'" in exclude_selector else exclude_selector.split('"')[1] if '"' in exclude_selector else ''
+                                    if id_pattern and id_pattern in element_id:
+                                        should_exclude = True
+                                        break
+                            except:
+                                pass
+                        
+                        if should_exclude:
+                            logger.debug(f"      除外セレクタに該当するためスキップ: {selector}")
+                            continue
+                        
                         # 要素のテキストを確認
                         price_text = element.text.strip()
                         if not price_text:
@@ -738,6 +989,8 @@ class ConfigurableScraper(BaseScraper):
         
         # 見つかった価格から選択（Yahoo!オークションの場合は「現在」を含む価格を優先）
         if found_prices:
+            # メルカリSHOPは事前の専用抽出で処理済み。ここでは通常の選択ロジックを適用する。
+            
             # Yahoo!オークションの場合、「現在」を含む価格を優先
             if 'auctions.yahoo.co.jp' in url.lower():
                 # 「現在」を含む価格を優先的に選択

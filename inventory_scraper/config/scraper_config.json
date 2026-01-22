@@ -69,16 +69,55 @@
       }
     },
     {
+      "name": "メルカリSHOP",
+      "url_patterns": [
+        "/shops/product/"
+      ],
+      "price_selectors": [
+        "h1 + * [class*='hifYq']",
+        "h1 ~ * [class*='hifYq']",
+        "article > * > *:first-child [class*='hifYq']",
+        "article > * > *:first-child [class*='sc-33425bfe-0']",
+        "article > * > *:first-child .merPrice",
+        "[class*='hifYq'][class*='mer-spacing-r-8']",
+        "[class*='sc-33425bfe-0'][class*='hifYq']"
+      ],
+      "price_exclude_selectors": [
+        "[class*='itemThumbnail']",
+        "[class*='merItemThumbnail']",
+        "[class*='overlayContent']",
+        "[class*='priceContainer__']",
+        "[id*='item-grid']",
+        "[class*='epZYpL']",
+        "[class*='cIcmHO']",
+        "[class*='merItemThumbnail']",
+        "[class*='sc-e3cfdb55-0']"
+      ],
+      "stock_selectors": [
+        ".item-status",
+        "[data-testid=\"status\"]",
+        ".sold-out"
+      ],
+      "stock_keywords": {
+        "in_stock": ["在庫あり", "在庫残り"],
+        "out_of_stock": ["売り切れ", "取引中", "sold"]
+      }
+    },
+    {
       "name": "メルカリ",
       "url_patterns": [
+        "/item/",
         "mercari.com",
         "mercari.jp"
       ],
       "price_selectors": [
-        ".item-price",
+        "#item-info [data-testid=\"price\"]",
+        "#item-info .merPrice",
         "[data-testid=\"price\"]",
+        ".item-price",
         ".merPrice"
       ],
+      "price_exclude_selectors": [],
       "stock_selectors": [
         ".item-status",
         "[data-testid=\"status\"]",

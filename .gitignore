@@ -42,3 +42,5 @@ inventory_scraper/logs/*.log
 # ChromeDriver
 chromedriver
 chromedriver.exe
+inventory_scraper/InventoryScraper.exe
+.cursor

@@ -118,6 +118,31 @@ class BaseScraper(ABC):
         except Exception:
             # エラーが発生した場合は404ではないと判定
             return False
+    
+    def _create_error_result(self, page_loaded: bool) -> Dict[str, any]:
+        """
+        エラー発生時の結果辞書を作成する
+        
+        Args:
+            page_loaded: ページがロードされたかどうか
+        
+        Returns:
+            Dict[str, any]: エラー結果辞書（仕入れ価格, 在庫ステータス, 最終更新日時）
+        """
+        if page_loaded:
+            is_404 = self.is_404_page()
+            return {
+                '仕入れ価格': 0 if is_404 else -1,
+                '在庫ステータス': '売り切れ' if is_404 else '不明',
+                '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            }
+        else:
+            # ページがロードされていない場合は安全な結果を返す
+            return {
+                '仕入れ価格': -1,
+                '在庫ステータス': '不明',
+                '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            }
 
 
 class AmazonScraper(BaseScraper):
@@ -327,38 +352,9 @@ class MercariScraper(BaseScraper):
             return result
             
         except (TimeoutException, WebDriverException) as e:
-            # WebDriver/Timeoutエラーがページロード後に発生した場合
-            # ページがロードされている可能性があるため、is_404_page()を呼ぶ
-            if page_loaded:
-                is_404 = self.is_404_page()
-                return {
-                    '仕入れ価格': 0 if is_404 else -1,
-                    '在庫ステータス': '売り切れ' if is_404 else '不明',
-                    '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                }
-            else:
-                # ページがロードされていない場合は安全な結果を返す
-                return {
-                    '仕入れ価格': -1,
-                    '在庫ステータス': '不明',
-                    '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                }
+            return self._create_error_result(page_loaded)
         except Exception as e:
-            # その他の例外（ページロード後に発生した場合のみis_404_page()を呼ぶ）
-            if page_loaded:
-                is_404 = self.is_404_page()
-                return {
-                    '仕入れ価格': 0 if is_404 else -1,
-                    '在庫ステータス': '売り切れ' if is_404 else '不明',
-                    '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                }
-            else:
-                # ページがロードされていない場合は安全な結果を返す
-                return {
-                    '仕入れ価格': -1,
-                    '在庫ステータス': '不明',
-                    '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                }
+            return self._create_error_result(page_loaded)
 
 
 class YahooScraper(BaseScraper):
@@ -447,38 +443,9 @@ class YahooScraper(BaseScraper):
             return result
             
         except (TimeoutException, WebDriverException) as e:
-            # WebDriver/Timeoutエラーがページロード後に発生した場合
-            # ページがロードされている可能性があるため、is_404_page()を呼ぶ
-            if page_loaded:
-                is_404 = self.is_404_page()
-                return {
-                    '仕入れ価格': 0 if is_404 else -1,
-                    '在庫ステータス': '売り切れ' if is_404 else '不明',
-                    '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                }
-            else:
-                # ページがロードされていない場合は安全な結果を返す
-                return {
-                    '仕入れ価格': -1,
-                    '在庫ステータス': '不明',
-                    '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                }
+            return self._create_error_result(page_loaded)
         except Exception as e:
-            # その他の例外（ページロード後に発生した場合のみis_404_page()を呼ぶ）
-            if page_loaded:
-                is_404 = self.is_404_page()
-                return {
-                    '仕入れ価格': 0 if is_404 else -1,
-                    '在庫ステータス': '売り切れ' if is_404 else '不明',
-                    '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                }
-            else:
-                # ページがロードされていない場合は安全な結果を返す
-                return {
-                    '仕入れ価格': -1,
-                    '在庫ステータス': '不明',
-                    '最終更新日時': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                }
+            return self._create_error_result(page_loaded)
 
 
 def get_scraper(url: str, browser, config_loader=None) -> BaseScraper:
