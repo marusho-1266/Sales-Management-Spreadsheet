@@ -1,0 +1,220 @@
+{
+  "sites": [
+    {
+      "name": "楽天市場",
+      "url_patterns": [
+        "rakuten.co.jp"
+      ],
+      "price_selectors": [
+        "#itemPrice",
+        "[id*='itemPrice']",
+        "[class*='item-price']",
+        "div#itemPrice",
+        "span.priceBox__price",
+        ".priceBox__price",
+        ".priceBox__priceMain",
+        "div.priceBox__price",
+        "[class*='priceBox__price']",
+        "[class*='priceBox'] span",
+        "[class*='priceBox'] div",
+        "span[class*='price']:not([class*='special']):not([class*='offer'])",
+        "div[class*='price']:not([class*='special']):not([class*='offer'])",
+        ".price:not([class*='special']):not([class*='offer'])",
+        "#price",
+        "[class*='price']:not([class*='special']):not([class*='offer'])",
+        ".itemPrice"
+      ],
+      "price_exclude_selectors": [
+        "[class*='special']",
+        "[class*='offer']",
+        "[class*='card']",
+        "[class*='楽天カード']",
+        "[class*='ポイント利用']"
+      ],
+      "stock_selectors": [
+        ".stock",
+        "[class*='stock']",
+        "[class*='Stock']",
+        ".availability",
+        "#stock",
+        "[class*='在庫']"
+      ],
+      "stock_keywords": {
+        "in_stock": ["在庫あり", "在庫", "購入可能", "available"],
+        "out_of_stock": ["売り切れ", "在庫なし", "完売", "sold out", "out of stock"]
+      }
+    },
+    {
+      "name": "Amazon",
+      "url_patterns": [
+        "amazon.co.jp",
+        "amazon.com"
+      ],
+      "price_selectors": [
+        "#priceblock_ourprice",
+        "#priceblock_dealprice",
+        ".a-price-whole",
+        "#price",
+        ".a-price .a-offscreen"
+      ],
+      "stock_selectors": [
+        "#availability span",
+        "#availability",
+        "#outOfStock",
+        ".a-color-state"
+      ],
+      "stock_keywords": {
+        "in_stock": ["在庫", "stock", "available"],
+        "out_of_stock": ["売り切れ", "out of stock", "unavailable"]
+      }
+    },
+    {
+      "name": "メルカリSHOP",
+      "url_patterns": [
+        "/shops/product/"
+      ],
+      "price_selectors": [
+        "h1 + * [class*='hifYq']",
+        "h1 ~ * [class*='hifYq']",
+        "article > * > *:first-child [class*='hifYq']",
+        "article > * > *:first-child [class*='sc-33425bfe-0']",
+        "article > * > *:first-child .merPrice",
+        "[class*='hifYq'][class*='mer-spacing-r-8']",
+        "[class*='sc-33425bfe-0'][class*='hifYq']"
+      ],
+      "price_exclude_selectors": [
+        "[class*='itemThumbnail']",
+        "[class*='merItemThumbnail']",
+        "[class*='overlayContent']",
+        "[class*='priceContainer__']",
+        "[id*='item-grid']",
+        "[class*='epZYpL']",
+        "[class*='cIcmHO']",
+        "[class*='merItemThumbnail']",
+        "[class*='sc-e3cfdb55-0']"
+      ],
+      "stock_selectors": [
+        ".item-status",
+        "[data-testid=\"status\"]",
+        ".sold-out"
+      ],
+      "stock_keywords": {
+        "in_stock": ["在庫あり", "在庫残り"],
+        "out_of_stock": ["売り切れ", "取引中", "sold"]
+      }
+    },
+    {
+      "name": "メルカリ",
+      "url_patterns": [
+        "/item/",
+        "mercari.com",
+        "mercari.jp"
+      ],
+      "price_selectors": [
+        "#item-info [data-testid=\"price\"]",
+        "#item-info .merPrice",
+        "[data-testid=\"price\"]",
+        ".item-price",
+        ".merPrice"
+      ],
+      "price_exclude_selectors": [],
+      "stock_selectors": [
+        ".item-status",
+        "[data-testid=\"status\"]",
+        ".sold-out"
+      ],
+      "stock_keywords": {
+        "in_stock": ["在庫あり"],
+        "out_of_stock": ["売り切れ", "取引中", "sold"]
+      }
+    },
+    {
+      "name": "Yahoo!オークション",
+      "url_patterns": [
+        "auctions.yahoo.co.jp"
+      ],
+      "price_selectors": [
+        "span[itemprop=\"price\"]",
+        "#CurrentPrice",
+        ".CurrentPrice",
+        "#Price",
+        ".Price",
+        "span.Price__value",
+        "div.Price__value",
+        ".Price__value",
+        ".Price__number",
+        "[class*='Price__value']",
+        "[class*='Price__number']",
+        "[class*='CurrentPrice']",
+        "span[class*='Price']",
+        "div[class*='Price']",
+        "[class*='Price']",
+        "[class*='price']",
+        "[data-testid*='price']",
+        "[data-testid*='Price']",
+        ".elPriceNumber",
+        "#price",
+        "[id*='price']",
+        "[id*='Price']"
+      ],
+      "stock_selectors": [
+        ".SoldOut",
+        "#SoldOut",
+        ".Finished",
+        ".AuctionEnded",
+        "[data-testid=\"sold-out\"]",
+        "[class*='status']",
+        "[class*='Status']",
+        "[data-testid*='status']",
+        "[data-testid*='Status']"
+      ],
+      "stock_keywords": {
+        "in_stock": ["在庫あり", "入札可能", "オークション中", "開催中", "入札する", "現在", "購入する"],
+        "out_of_stock": ["終了", "終了しました", "売り切れ", "落札済み", "取引終了", "終了済み"]
+      }
+    },
+    {
+      "name": "Yahoo!ショッピング",
+      "url_patterns": [
+        "shopping.yahoo.co.jp"
+      ],
+      "price_selectors": [
+        ".elPriceNumber",
+        ".Price__value",
+        "[data-testid=\"price\"]"
+      ],
+      "stock_selectors": [
+        ".elStockStatus",
+        "[data-testid=\"stock-status\"]",
+        ".StockStatus"
+      ],
+      "stock_keywords": {
+        "in_stock": ["在庫あり"],
+        "out_of_stock": ["在庫なし", "売り切れ"]
+      }
+    }
+  ],
+  "default": {
+    "price_selectors": [
+      "[class*='price']",
+      "[class*='Price']",
+      "[id*='price']",
+      "[id*='Price']",
+      ".price",
+      "#price"
+    ],
+    "stock_selectors": [
+      "[class*='stock']",
+      "[class*='Stock']",
+      "[id*='stock']",
+      "[id*='Stock']",
+      ".stock",
+      "#stock"
+    ],
+    "stock_keywords": {
+      "in_stock": ["在庫あり", "在庫", "available", "stock"],
+      "out_of_stock": ["売り切れ", "在庫なし", "out of stock", "sold out"]
+    }
+  }
+}
+

@@ -1761,6 +1761,8 @@ function setupCustomMenu() {
       ui.createMenu('🛠️ システム管理')
         .addItem('全シート初期化', 'initializeAllSheets')
         .addItem('利益計算シート初期化', 'initializeProfitSheetOnly')
+        .addSeparator()
+        .addItem('個別シート初期化・再作成', 'showIndividualSheetInitializationMenu')
         .addItem('データバックアップ', 'showDataBackupMenu')
     )
     .addSubMenu(
@@ -2051,6 +2053,176 @@ function showDataBackupMenu() {
   ui.alert('データバックアップ', 'データバックアップ機能は今後実装予定です。', ui.ButtonSet.OK);
 }
 
+
+/**
+ * 個別シート初期化・再作成メニューの表示
+ */
+function showIndividualSheetInitializationMenu() {
+  const ui = SpreadsheetApp.getUi();
+  
+  const sheetOptions = [
+    { name: '在庫管理シート', value: 'inventory' },
+    { name: '売上管理シート', value: 'sales' },
+    { name: '仕入れ元マスターシート', value: 'supplier' },
+    { name: '価格履歴シート', value: 'price_history' },
+    { name: '設定シート', value: 'settings' },
+    { name: '利益計算シート', value: 'profit' }
+  ];
+  
+  const optionsText = sheetOptions.map((opt, index) => {
+    return `${index + 1}. ${opt.name}`;
+  }).join('\n');
+  
+  const response = ui.prompt(
+    '個別シート初期化・再作成',
+    `初期化・再作成するシートを選択してください:\n\n${optionsText}\n\n番号を入力してください:`,
+    ui.ButtonSet.OK_CANCEL
+  );
+  
+  if (response.getSelectedButton() === ui.Button.OK) {
+    const input = response.getResponseText().trim();
+    const selectedIndex = parseInt(input) - 1;
+    
+    if (selectedIndex >= 0 && selectedIndex < sheetOptions.length) {
+      const selectedSheet = sheetOptions[selectedIndex];
+      
+      // 再作成オプションの確認
+      const recreateResponse = ui.alert(
+        'シート再作成',
+        `${selectedSheet.name}を再作成しますか？\n\n「はい」: シートを削除してから再作成\n「いいえ」: 既存シートを初期化（データをクリア）`,
+        ui.ButtonSet.YES_NO_CANCEL
+      );
+      
+      if (recreateResponse === ui.Button.YES) {
+        // 再作成（削除→作成）
+        recreateSheet(selectedSheet.value);
+      } else if (recreateResponse === ui.Button.NO) {
+        // 初期化（データクリア）
+        initializeSheet(selectedSheet.value);
+      }
+    } else {
+      ui.alert('エラー', '無効な番号が入力されました。', ui.ButtonSet.OK);
+    }
+  }
+}
+
+/**
+ * シートを再作成（削除→作成）
+ * @param {string} sheetType - シートタイプ（'inventory', 'sales', 'supplier', 'price_history', 'settings', 'profit'）
+ */
+function recreateSheet(sheetType) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+  
+  const sheetNameMap = {
+    'inventory': SHEET_NAMES.INVENTORY,
+    'sales': SHEET_NAMES.SALES,
+    'supplier': SHEET_NAMES.SUPPLIER_MASTER,
+    'price_history': SHEET_NAMES.PRICE_HISTORY,
+    'settings': SHEET_NAMES.SETTINGS,
+    'profit': SHEET_NAMES.PROFIT
+  };
+  
+  const sheetName = sheetNameMap[sheetType];
+  if (!sheetName) {
+    ui.alert('エラー', '無効なシートタイプが指定されました。', ui.ButtonSet.OK);
+    return;
+  }
+  
+  try {
+    // 既存シートを削除
+    const existingSheet = ss.getSheetByName(sheetName);
+    if (existingSheet) {
+      // スプレッドシートにシートが1つしかない場合は、削除前に一時シートを作成
+      const sheets = ss.getSheets();
+      let tempSheet = null;
+      if (sheets.length === 1) {
+        tempSheet = ss.insertSheet('__temp_sheet__');
+        console.log('一時シートを作成しました（シートが1つしかないため）');
+      }
+      
+      ss.deleteSheet(existingSheet);
+      console.log(`${sheetName}を削除しました`);
+      
+      // 一時シートを削除（存在する場合）
+      if (tempSheet) {
+        ss.deleteSheet(tempSheet);
+        console.log('一時シートを削除しました');
+      }
+    }
+    
+    // シートを初期化（作成）
+    initializeSheet(sheetType);
+    
+    ui.alert(
+      '再作成完了',
+      `${sheetName}を再作成しました。`,
+      ui.ButtonSet.OK
+    );
+    
+  } catch (error) {
+    console.error('シート再作成中にエラーが発生しました:', error);
+    ui.alert(
+      'エラー',
+      `シート再作成中にエラーが発生しました: ${error.message}`,
+      ui.ButtonSet.OK
+    );
+  }
+}
+
+/**
+ * シートを初期化（データクリア）
+ * @param {string} sheetType - シートタイプ（'inventory', 'sales', 'supplier', 'price_history', 'settings', 'profit'）
+ */
+function initializeSheet(sheetType) {
+  const ui = SpreadsheetApp.getUi();
+  
+  try {
+    switch (sheetType) {
+      case 'inventory':
+        initializeInventorySheet();
+        break;
+      case 'sales':
+        initializeSalesSheet();
+        break;
+      case 'supplier':
+        initializeSupplierMasterSheet();
+        break;
+      case 'price_history':
+        initializePriceHistorySheet();
+        break;
+      case 'settings':
+        initializeSettingsSheet();
+        break;
+      case 'profit':
+        initializeProfitSheet();
+        break;
+      default:
+        ui.alert('エラー', '無効なシートタイプが指定されました。', ui.ButtonSet.OK);
+        return;
+    }
+    
+    const sheetNameMap = {
+      'inventory': SHEET_NAMES.INVENTORY,
+      'sales': SHEET_NAMES.SALES,
+      'supplier': SHEET_NAMES.SUPPLIER_MASTER,
+      'price_history': SHEET_NAMES.PRICE_HISTORY,
+      'settings': SHEET_NAMES.SETTINGS,
+      'profit': SHEET_NAMES.PROFIT
+    };
+    
+    const sheetName = sheetNameMap[sheetType];
+    console.log(`${sheetName}の初期化が完了しました`);
+    
+  } catch (error) {
+    console.error('シート初期化中にエラーが発生しました:', error);
+    ui.alert(
+      'エラー',
+      `シート初期化中にエラーが発生しました: ${error.message}`,
+      ui.ButtonSet.OK
+    );
+  }
+}
 
 /**
  * スプレッドシートが開かれた時の初期化

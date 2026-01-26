@@ -1,0 +1,11 @@
+# test_config.py
+from src.config import (
+    SPREADSHEET_ID, SHEET_GID,
+    CHROME_PROFILE_PATH, CHROME_PROFILE_NAME
+)
+
+print("=== 設定確認 ===")
+print(f"SPREADSHEET_ID: {SPREADSHEET_ID}")
+print(f"SHEET_GID: {SHEET_GID}")
+print(f"CHROME_PROFILE_PATH: {CHROME_PROFILE_PATH}")
+print(f"CHROME_PROFILE_NAME: {CHROME_PROFILE_NAME}")

@@ -201,10 +201,11 @@ function getCategoryData() {
 function getSupplierData() {
   try {
     const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-    const supplierSheet = spreadsheet.getSheetByName('仕入れ元マスター');
+    // Constants.gsの定数を使用してシート名を取得
+    const supplierSheet = spreadsheet.getSheetByName(SHEET_NAMES.SUPPLIER_MASTER);
     
     if (!supplierSheet) {
-      console.warn('仕入れ元マスターシートが見つかりません');
+      console.warn('仕入れ元マスターシートが見つかりません。シート名:', SHEET_NAMES.SUPPLIER_MASTER);
       return [];
     }
     
@@ -214,16 +215,19 @@ function getSupplierData() {
       return [];
     }
     
-    // 仕入れ元データを取得（サイト名、手数料率、アクセス間隔、有効フラグ）
-    const data = supplierSheet.getRange(2, 1, lastRow - 1, 8).getValues();
+    // 仕入れ元データを取得（全11列を取得）
+    // 列構成: 1=サイト名, 2=URLパターン, 3=価格セレクタ, 4=価格除外セレクタ, 
+    //         5=在庫セレクタ, 6=在庫ありキーワード, 7=売り切れキーワード,
+    //         8=手数料率(%), 9=アクセス間隔(秒), 10=有効フラグ, 11=備考
+    const data = supplierSheet.getRange(2, 1, lastRow - 1, 11).getValues();
     
     const suppliers = [];
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
-      const siteName = row[0];
-      const feeRate = row[5]; // 手数料率（%）
-      const accessInterval = row[6]; // アクセス間隔（秒）
-      const activeFlag = row[7]; // 有効フラグ
+      const siteName = row[0]; // 列1: サイト名
+      const feeRate = row[7]; // 列8: 手数料率（%）
+      const accessInterval = row[8]; // 列9: アクセス間隔（秒）
+      const activeFlag = row[9]; // 列10: 有効フラグ
       
       // 有効な仕入れ元のみを追加
       if (siteName && activeFlag === '有効') {
@@ -237,10 +241,12 @@ function getSupplierData() {
       }
     }
     
+    console.log(`仕入れ元データを取得しました: ${suppliers.length}件`);
     return suppliers;
     
   } catch (error) {
     console.error('仕入れ元データ取得エラー:', error);
+    console.error('エラースタック:', error.stack);
     return [];
   }
 }

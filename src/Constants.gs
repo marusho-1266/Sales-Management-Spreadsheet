@@ -5,6 +5,14 @@
  */
 
 /**
+ * スプレッドシートID定数
+ * 注意: 実際のスプレッドシートIDに置き換えてください
+ * スプレッドシートのURLから取得できます:
+ * https://docs.google.com/spreadsheets/d/<YOUR_SPREADSHEET_ID>/edit
+ */
+const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID_HERE';
+
+/**
  * スプレッドシートの列インデックス定数
  */
 const COLUMN_INDEXES = {
