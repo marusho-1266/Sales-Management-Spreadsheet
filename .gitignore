@@ -44,3 +44,5 @@ chromedriver
 chromedriver.exe
 inventory_scraper/InventoryScraper.exe
 .cursor
+inventory_scraper/配布用/
+.clasp.json_bk
