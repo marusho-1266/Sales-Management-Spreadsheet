@@ -36,8 +36,9 @@ function transformJoomOrderToSalesRow(joomOrder) {
       };
     }
     
-    // 商品情報を在庫管理シートから取得
-    const productInfo = getProductInfoFromInventory(joomOrder.product.sku);
+    // 商品情報を在庫管理シートから取得（product.sku を優先、次に variant.sku、なければ product.id）
+    const lookupSku = joomOrder.product.sku || (joomOrder.product.variant && joomOrder.product.variant.sku) || joomOrder.product.id || '';
+    const productInfo = getProductInfoFromInventory(lookupSku);
     
     // 日時の変換（null-safe）
     const orderDate = joomOrder.orderTimestamp ? 
@@ -154,21 +155,24 @@ function getProductInfoFromInventory(sku) {
       throw new Error('在庫管理シートにデータがありません');
     }
     
-    // 商品IDでデータを検索（A列）
-    const productIdRange = inventorySheet.getRange(2, COLUMN_INDEXES.INVENTORY.PRODUCT_ID, lastRow - 1, 1);
-    const productIds = productIdRange.getValues();
+    // 商品ID（A列）とSKU（C列）の両方で検索。いずれか一致すれば該当行とする。
+    const searchRange = inventorySheet.getRange(2, 1, lastRow - 1, COLUMN_INDEXES.INVENTORY.SKU);
+    const rows = searchRange.getValues();
+    const colProductId = COLUMN_INDEXES.INVENTORY.PRODUCT_ID - 1;
+    const colSku = COLUMN_INDEXES.INVENTORY.SKU - 1;
     
-    // SKUに一致する行を探す
     let targetRow = -1;
-    for (let i = 0; i < productIds.length; i++) {
-      if (productIds[i][0] === sku) {
-        targetRow = i + 2; // ヘッダー行を考慮
+    for (let i = 0; i < rows.length; i++) {
+      const pId = rows[i][colProductId];
+      const s = rows[i][colSku];
+      if (String(pId || '') === String(sku) || String(s || '') === String(sku)) {
+        targetRow = i + 2;
         break;
       }
     }
     
     if (targetRow === -1) {
-      console.warn(`商品情報が見つかりません: ${sku}。デフォルト値を使用します。`);
+      console.warn(`商品情報が見つかりません: ${sku}。デフォルト値を使用します。（在庫管理の 商品ID または SKU と一致する行がありません）`);
       return {
         productId: sku,
         productName: '商品名不明（在庫管理シートに未登録）',
@@ -631,10 +635,11 @@ function updateInventorySheet(orders) {
       return 0;
     }
     
-    // SKUごとの注文集計
+    // SKUごとの注文集計（product.sku / variant.sku / product.id を正規化してキーに使用）
     const skuOrderMap = new Map();
     orders.forEach(order => {
-      const sku = order.product.sku;
+      const sku = String(order.product.sku || order.product.variant?.sku || order.product.id || '');
+      if (!sku) return;
       const quantity = order.quantity || 1;
       const orderDate = new Date(order.orderTimestamp);
       
@@ -661,31 +666,38 @@ function updateInventorySheet(orders) {
     
     let updatedCount = 0;
     
-    // 各商品について更新
+    // 各商品について更新（商品ID または SKU のいずれかが Joom の product.sku と一致すれば更新）
     data.forEach((row, index) => {
-      const sku = row[COLUMN_INDEXES.INVENTORY.PRODUCT_ID - 1];
+      const productId = row[COLUMN_INDEXES.INVENTORY.PRODUCT_ID - 1];
+      const skuVal = row[COLUMN_INDEXES.INVENTORY.SKU - 1];
+      const mapKey = skuOrderMap.has(String(productId || '')) ? String(productId || '') : (skuOrderMap.has(String(skuVal || '')) ? String(skuVal || '') : null);
       
-      if (skuOrderMap.has(sku)) {
-        const orderInfo = skuOrderMap.get(sku);
+      if (mapKey) {
+        const orderInfo = skuOrderMap.get(mapKey);
         const actualRow = index + 2;
         
-        // 在庫数量を減算（N列）
+        // 在庫数量を減算（R列）
         const currentStock = parseInt(row[COLUMN_INDEXES.INVENTORY.STOCK_QUANTITY - 1]) || 0;
         const newStock = Math.max(0, currentStock - orderInfo.totalQuantity);
         inventorySheet.getRange(actualRow, COLUMN_INDEXES.INVENTORY.STOCK_QUANTITY).setValue(newStock);
         
-        // 最終注文日を更新（P列）
-        inventorySheet.getRange(actualRow, COLUMN_INDEXES.INVENTORY.LAST_ORDER_DATE)
-          .setValue(orderInfo.latestOrderDate)
-          .setNumberFormat('yyyy-mm-dd');
-        
-        // 総注文数を更新（Q列）
-        const currentOrderCount = parseInt(row[COLUMN_INDEXES.INVENTORY.TOTAL_ORDERS - 1]) || 0;
-        const newOrderCount = currentOrderCount + orderInfo.orderCount;
-        inventorySheet.getRange(actualRow, COLUMN_INDEXES.INVENTORY.TOTAL_ORDERS).setValue(newOrderCount);
-        
+        // 最終注文日・総注文数は COLUMN_INDEXES に定義がある場合のみ更新（在庫管理に該当列がある場合）
+        if (COLUMN_INDEXES.INVENTORY.LAST_ORDER_DATE) {
+          inventorySheet.getRange(actualRow, COLUMN_INDEXES.INVENTORY.LAST_ORDER_DATE)
+            .setValue(orderInfo.latestOrderDate)
+            .setNumberFormat('yyyy-mm-dd');
+        }
+        let orderCountLog = '';
+        if (COLUMN_INDEXES.INVENTORY.TOTAL_ORDERS) {
+          const currentOrderCount = parseInt(row[COLUMN_INDEXES.INVENTORY.TOTAL_ORDERS - 1]) || 0;
+          const newOrderCount = currentOrderCount + orderInfo.orderCount;
+          inventorySheet.getRange(actualRow, COLUMN_INDEXES.INVENTORY.TOTAL_ORDERS).setValue(newOrderCount);
+          orderCountLog = `, 注文数: ${currentOrderCount} → ${newOrderCount}`;
+        } else {
+          orderCountLog = `, 今回注文: ${orderInfo.orderCount}件`;
+        }
         updatedCount++;
-        console.log(`在庫更新: ${sku}, 在庫: ${currentStock} → ${newStock}, 注文数: ${currentOrderCount} → ${newOrderCount}`);
+        console.log(`在庫更新: 商品ID=${productId}, 在庫: ${currentStock} → ${newStock}${orderCountLog}`);
       }
     });
     

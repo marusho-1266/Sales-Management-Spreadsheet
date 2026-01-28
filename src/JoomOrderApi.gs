@@ -1116,11 +1116,11 @@ function fetchJoomOrdersByDateMenu() {
       return;
     }
     
-    // 日時の解析
+    // 日時の解析（終了日は日付のみの場合 23:59:59 を補完）
     let startDate, endDate;
     try {
-      startDate = parseDateTime(startDateText);
-      endDate = parseDateTime(endDateText);
+      startDate = parseDateTime(startDateText, false);
+      endDate = parseDateTime(endDateText, true);
     } catch (error) {
       ui.alert('エラー', '日時の形式が正しくありません。\n例: 2025-10-01 00:00:00', ui.ButtonSet.OK);
       return;
@@ -1520,11 +1520,11 @@ function debugShowDateRangeOrdersRawData() {
       return;
     }
     
-    // 日時の解析
+    // 日時の解析（終了日は日付のみの場合 23:59:59 を補完）
     let startDate, endDate;
     try {
-      startDate = parseDateTime(startDateText);
-      endDate = parseDateTime(endDateText);
+      startDate = parseDateTime(startDateText, false);
+      endDate = parseDateTime(endDateText, true);
     } catch (error) {
       ui.alert('エラー', '日時の形式が正しくありません。\n例: 2025-10-13 00:00:00', ui.ButtonSet.OK);
       return;
@@ -1658,9 +1658,10 @@ function formatOrderDataForDisplay(order) {
 /**
  * 日時文字列の解析
  * @param {string} dateTimeString - 日時文字列
+ * @param {boolean} isEndOfDay - 終了日用のとき true の場合、日付のみ入力で 23:59:59 を補完
  * @returns {Date} 解析された日時
  */
-function parseDateTime(dateTimeString) {
+function parseDateTime(dateTimeString, isEndOfDay) {
   try {
     // 日付のみの場合（時刻を補完）
     if (!dateTimeString.includes(' ')) {
@@ -1669,8 +1670,10 @@ function parseDateTime(dateTimeString) {
         const today = Utilities.formatDate(new Date(), 'JST', 'yyyy-MM-dd');
         dateTimeString = `${today} ${dateTimeString}`;
       } else {
-        // 日付のみの場合は時刻を補完
-        dateTimeString = `${dateTimeString} 00:00:00`;
+        // 日付のみ: 終了日なら23:59:59、開始日なら00:00:00
+        dateTimeString = isEndOfDay
+          ? `${dateTimeString} 23:59:59`
+          : `${dateTimeString} 00:00:00`;
       }
     }
     
@@ -2082,15 +2085,16 @@ Redirect URL: ${webAppUrl}
 function fetchSingleJoomOrder(orderId) {
   try {
     console.log(`単一注文取得開始: ${orderId}`);
-    
-    const endpoint = `/orders/${orderId}`;
+    // Joom API v3: 単一注文は GET /orders?id=注文ID 形式（パスではなくクエリパラメータ）
+    // 参照: doc/Joom_API_v3_Get_Order_詳細資料.md
+    const endpoint = `/orders?id=${encodeURIComponent(orderId)}`;
     const response = makeJoomApiRequest(endpoint, 'GET');
     
-    if (response.code === 0 && response.data) {
+    if (response && response.data) {
       console.log(`単一注文取得成功: ${orderId}`);
       return response.data;
     } else {
-      throw new Error(`注文取得失敗: ${response.message || '不明なエラー'}`);
+      throw new Error(`注文取得失敗: ${response?.message || response?.errors?.[0]?.message || '不明なエラー'}`);
     }
     
   } catch (error) {
@@ -2131,16 +2135,40 @@ function fetchMultipleJoomOrders(options = {}) {
     const endpoint = `/orders/multi${queryParams.length > 0 ? '?' + queryParams.join('&') : ''}`;
     const response = makeJoomApiRequest(endpoint, 'GET');
     
-    if (response.code === 0 && response.data) {
-      console.log(`複数注文取得成功: ${response.data.orders?.length || 0}件`);
-      return {
-        orders: response.data.orders || [],
-        pagination: response.data.pagination || {},
-        totalCount: response.data.total_count || 0
-      };
-    } else {
-      throw new Error(`複数注文取得失敗: ${response.message || '不明なエラー'}`);
+    // Joom API v3: 実レスポンスは { code, data: { items: [...] } } の形式。資料の data 配列や data.orders にも対応。
+    let orders = [];
+    if (Array.isArray(response.data)) {
+      orders = response.data;
+    } else if (response.data && Array.isArray(response.data.items)) {
+      orders = response.data.items;
+    } else if (response.data && Array.isArray(response.data.orders)) {
+      orders = response.data.orders;
+    } else if (Array.isArray(response.orders)) {
+      orders = response.orders;
+    } else if (response.data && typeof response.data === 'object' && response.data !== null && Array.isArray(response.data.data)) {
+      orders = response.data.data;
     }
+    
+    // paging: ルートの paging または data.paging を参照
+    const paging = response.paging || (response.data && response.data.paging) || {};
+    const nextUrl = paging.next || null;
+    let after = null;
+    if (nextUrl) {
+      try {
+        const u = new URL(nextUrl);
+        after = u.searchParams.get('after');
+      } catch (e) { /* ignore */ }
+    }
+    
+    console.log(`複数注文取得成功: ${orders.length}件`);
+    return {
+      orders: orders,
+      pagination: {
+        has_more: !!nextUrl,
+        after: after
+      },
+      totalCount: (response.data && response.data.total_count !== undefined) ? response.data.total_count : orders.length
+    };
     
   } catch (error) {
     console.error('複数注文取得エラー:', error);
@@ -2169,7 +2197,7 @@ function fetchJoomOrdersByDateRange(startDate, endDate, additionalOptions = {}) 
       ...additionalOptions
     };
     
-    const allOrders = [];
+    let allOrders = [];
     let hasMore = true;
     let cursor = null;
     
@@ -2196,6 +2224,37 @@ function fetchJoomOrdersByDateRange(startDate, endDate, additionalOptions = {}) 
       }
       
       console.log(`取得済み: ${allOrders.length}件, 次ページ: ${hasMore}`);
+    }
+    
+    // 0件の場合: APIのupdatedFrom/updatedToは「最終更新日(updateTimestamp)」で絞る。
+    // Approval Date（承認日）は orderTimestamp に近いため、更新日で0件なら
+    // updated を付けずに取得し、orderTimestamp で絞り込むフォールバックを試行。
+    if (allOrders.length === 0) {
+      console.log('更新日時(updatedFrom/updatedTo)で0件のため、注文日(orderTimestamp)でフォールバック取得を試行します');
+      allOrders = [];
+      let fbHasMore = true;
+      let fbCursor = null;
+      let fbPageCount = 0;
+      const maxFallbackPages = 5; // 最大500件を注文日で確認
+      while (fbHasMore && fbPageCount < maxFallbackPages) {
+        const fbOpts = { limit: 100 };
+        if (fbCursor) fbOpts.after = fbCursor;
+        const fbResult = fetchMultipleJoomOrders(fbOpts);
+        for (const order of fbResult.orders) {
+          const ts = order.orderTimestamp || order.updateTimestamp;
+          if (ts) {
+            const d = new Date(ts);
+            if (!isNaN(d.getTime()) && d >= startDate && d <= endDate) {
+              allOrders.push(order);
+            }
+          }
+        }
+        fbHasMore = fbResult.pagination.has_more || false;
+        fbCursor = fbResult.pagination.after || null;
+        fbPageCount++;
+        if (fbHasMore) Utilities.sleep(1200);
+      }
+      console.log(`フォールバック取得完了: 注文日(orderTimestamp)で絞り込み後 ${allOrders.length}件`);
     }
     
     console.log(`日時範囲指定注文取得完了: ${allOrders.length}件`);
