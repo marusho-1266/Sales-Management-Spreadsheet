@@ -32,9 +32,15 @@ function saveNewProduct(formData) {
       throw new Error('在庫管理シートが見つかりません');
     }
     
-    // 備考列が存在するかチェックし、存在しない場合は追加
+    // 販売価格（USD）列が存在するかチェックし、存在しない場合は追加
     const headerRange = inventorySheet.getRange(1, 1, 1, inventorySheet.getLastColumn());
     const headers = headerRange.getValues()[0];
+    if (!headers.includes('販売価格（USD）')) {
+      console.log('販売価格（USD）列が存在しないため、追加します');
+      addSellingPriceUsdColumnToExistingSheet();
+    }
+    
+    // 備考列が存在するかチェックし、存在しない場合は追加
     if (!headers.includes('備考・メモ')) {
       console.log('備考列が存在しないため、追加します');
       addNotesColumnToExistingSheet();
@@ -56,6 +62,12 @@ function saveNewProduct(formData) {
     const now = new Date();
     const timestamp = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
     
+    // 販売価格（USD）: パースして NaN の場合は空にする
+    const sellingPriceUsdParsed = (formData.sellingPriceUsd !== '' && formData.sellingPriceUsd != null)
+      ? parseFloat(formData.sellingPriceUsd)
+      : NaN;
+    const sellingPriceUsd = Number.isNaN(sellingPriceUsdParsed) ? '' : sellingPriceUsdParsed;
+    
     // 新しい行のデータを準備（Joom対応フィールド含む）
     const newRowData = [
       formData.productId,           // 商品ID
@@ -66,6 +78,7 @@ function saveNewProduct(formData) {
       formData.supplierUrl,         // 仕入れ元URL
       formData.purchasePrice,       // 仕入れ価格
       formData.sellingPrice || 0,        // 販売価格
+      sellingPriceUsd,              // 販売価格（USD）任意（不正時は空）
       formData.weight,              // 重量
       // 容積重量計算用寸法フィールド（重量の後ろに配置）
       formData.heightCm || 0,       // 高さ(cm)
@@ -105,6 +118,7 @@ function saveNewProduct(formData) {
     inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.PRODUCT_ID, 1, 1).setNumberFormat('0');        // 商品ID
     inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.PURCHASE_PRICE, 1, 1).setNumberFormat('#,##0');    // 仕入れ価格
     inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.SELLING_PRICE, 1, 1).setNumberFormat('#,##0');    // 販売価格
+    inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.SELLING_PRICE_USD, 1, 1).setNumberFormat('#,##0.00');  // 販売価格（USD）
     inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.WEIGHT, 1, 1).setNumberFormat('0');        // 重量
     inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.SHIPPING_PRICE, 1, 1).setNumberFormat('#,##0');   // 配送価格
     inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.STOCK_QUANTITY, 1, 1).setNumberFormat('0');       // 在庫数量
@@ -114,9 +128,9 @@ function saveNewProduct(formData) {
     inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.PEAK_SEASON_FEE, 1, 1).setNumberFormat('#,##0');   // 繁忙期料金(円)
     inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.EXCHANGE_RATE, 1, 1).setNumberFormat('#,##0.00');   // 最終為替レート
     
-    // 利益計算式を設定（利益計算シートと同様）
-    // H列: 販売価格, G列: 仕入れ価格, R列: 配送価格(送料), V列: Joom手数料, W列: サーチャージ, X列: 繁忙期料金, U列: 返金額(プラス)
-    const profitFormula = `=H${lastRow}-G${lastRow}-R${lastRow}-V${lastRow}-W${lastRow}-X${lastRow}+U${lastRow}`;
+    // 利益計算式: 販売価格-(仕入価格+配送価格+返金額+Joom手数料+サーチャージ+繁忙料金)
+    // H列: 販売価格, G列: 仕入価格, R列: 配送価格, U列: 返金額, V列: Joom手数料, W列: サーチャージ, X列: 繁忙料金
+    const profitFormula = `=H${lastRow}-(G${lastRow}+R${lastRow}+U${lastRow}+V${lastRow}+W${lastRow}+X${lastRow})`;
     inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.PROFIT, 1, 1).setFormula(profitFormula);
     inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.PROFIT, 1, 1).setNumberFormat('#,##0');   // 利益
     
@@ -664,7 +678,8 @@ function getProductInputFormHtml() {
           </div>
           
           <div class="form-group">
-            <!-- 空のスペース -->
+            <label for="sellingPriceUsd">販売価格（USD）</label>
+            <input type="number" id="sellingPriceUsd" name="sellingPriceUsd" placeholder="1000" min="0" step="0.01">
           </div>
         </div>
         
@@ -986,6 +1001,7 @@ function getProductInputFormHtml() {
           supplierUrl: document.getElementById('supplierUrl').value,
           purchasePrice: parseFloat(document.getElementById('purchasePrice').value),
           sellingPrice: document.getElementById('sellingPrice').value ? parseFloat(document.getElementById('sellingPrice').value) : null,
+          sellingPriceUsd: document.getElementById('sellingPriceUsd').value,
           weight: parseInt(document.getElementById('weight').value),
           // Joom対応フィールド
           description: document.getElementById('description').value,

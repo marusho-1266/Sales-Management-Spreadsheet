@@ -927,17 +927,23 @@ function setupProfitSheetDataValidation(sheet) {
       .build();
     sheet.getRange('B33').setDataValidation(exchangeValidation);
     
-    // 商品ID入力のデータ検証（在庫管理シートのA列を参照）
+    // 商品ID入力のデータ検証（在庫管理シートのA列のデータ行のみ参照、ヘッダ・空行を除外）
     try {
       const ss = SpreadsheetApp.getActiveSpreadsheet();
       const inventorySheet = ss.getSheetByName('在庫管理');
       if (inventorySheet) {
-        const productIdValidation = SpreadsheetApp.newDataValidation()
-          .requireValueInRange(inventorySheet.getRange('A:A'))
-          .setAllowInvalid(false)
-          .setHelpText('在庫管理シートの商品IDを選択してください')
-          .build();
-        sheet.getRange('B2').setDataValidation(productIdValidation);
+        const lastRow = inventorySheet.getLastRow();
+        const dataRowCount = Math.max(0, lastRow - 1);
+        if (dataRowCount > 0) {
+          const endRow = 1 + dataRowCount;
+          const productIdRange = inventorySheet.getRange(2, 1, endRow, 1);
+          const productIdValidation = SpreadsheetApp.newDataValidation()
+            .requireValueInRange(productIdRange)
+            .setAllowInvalid(false)
+            .setHelpText('在庫管理に登録されている商品IDを選択してください')
+            .build();
+          sheet.getRange('B2').setDataValidation(productIdValidation);
+        }
       }
     } catch (e) {
       console.log('商品IDデータ検証の設定中に警告:', e);
@@ -1150,7 +1156,7 @@ function loadProductDataFromInventory(productId, showFeedback = false) {
       profitSheet.getRange('E6').setValue(productData[4] || '');  // 仕入れ元
       profitSheet.getRange('B13').setValue(productData[6] || 0);  // 仕入れ価格
       profitSheet.getRange(PROFIT_CELLS.SELLING_PRICE).setValue(productData[7] || 0);  // 販売価格
-      profitSheet.getRange('B15').setValue(productData[8] || 0);  // 重量
+      profitSheet.getRange('B15').setValue(productData[COLUMN_INDEXES.INVENTORY.WEIGHT - 1] || 0);  // 重量
       
       // 容積重量計算用寸法データの設定
       // Y: 高さ(cm), Z: 長さ(cm), AA: 幅(cm), AB: 容積重量係数
@@ -1269,6 +1275,14 @@ function syncProfitDataToInventory() {
         format: '#,##0'
       },
       {
+        label: '販売価格（USD）',
+        rangeA1: PROFIT_CELLS.USD_CONVERTED_PRICE,
+        columnIndex: COLUMN_INDEXES.INVENTORY.SELLING_PRICE_USD,
+        allowBlank: true,
+        format: '#,##0.00',
+        summarySymbol: '$'
+      },
+      {
         label: '配送価格',
         rangeA1: PROFIT_CELLS.SHIPPING_COST,
         columnIndex: COLUMN_INDEXES.INVENTORY.SHIPPING_PRICE,
@@ -1335,17 +1349,15 @@ function syncProfitDataToInventory() {
       results.push({
         label: point.label,
         previous: previousValue,
-        updated: numericValue
+        updated: numericValue,
+        summarySymbol: point.summarySymbol || '¥'
       });
     });
 
-    const formatCurrency = function(value) {
-      const num = Number(value) || 0;
-      return '¥' + num.toLocaleString();
-    };
-
     const summaryLines = results.map(function(result) {
-      return `${result.label}: ${formatCurrency(result.previous)} → ${formatCurrency(result.updated)}`;
+      var sym = result.summarySymbol || '¥';
+      var fmt = function(v) { return sym + (Number(v) || 0).toLocaleString(); };
+      return result.label + ': ' + fmt(result.previous) + ' → ' + fmt(result.updated);
     });
 
     const messageBody = [
@@ -1377,7 +1389,7 @@ function validateProductData(productData) {
       errors.push('仕入価格が正しく設定されていません');
     }
     
-    if (!productData[8] || productData[8] <= 0) {
+    if (!productData[COLUMN_INDEXES.INVENTORY.WEIGHT - 1] || productData[COLUMN_INDEXES.INVENTORY.WEIGHT - 1] <= 0) {
       errors.push('重量が正しく設定されていません');
     }
     

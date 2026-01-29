@@ -2347,8 +2347,8 @@ function getExistingOrderIds() {
       return new Set();
     }
     
-    // 注文ID列（B列）のデータを取得
-    const orderIdRange = salesSheet.getRange(2, 2, lastRow - 1, 1);
+    // 注文ID列（A列）のデータを取得
+    const orderIdRange = salesSheet.getRange(2, 1, lastRow - 1, 1);
     const orderIdValues = orderIdRange.getValues();
     
     const existingIds = new Set();

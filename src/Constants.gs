@@ -26,27 +26,28 @@ const COLUMN_INDEXES = {
     SUPPLIER_URL: 6,         // F列: 仕入れ元URL
     PURCHASE_PRICE: 7,       // G列: 仕入れ価格
     SELLING_PRICE: 8,        // H列: 販売価格
-    WEIGHT: 9,               // I列: 重量
-    HEIGHT_CM: 10,           // J列: 高さ(cm)
-    LENGTH_CM: 11,           // K列: 長さ(cm)
-    WIDTH_CM: 12,            // L列: 幅(cm)
-    CATEGORY: 13,            // M列: 商品カテゴリー
-    DESCRIPTION: 14,         // N列: 商品説明
-    MAIN_IMAGE_URL: 15,      // O列: メイン画像URL
-    CURRENCY: 16,            // P列: 通貨
-    SHIPPING_PRICE: 17,      // Q列: 配送価格
-    STOCK_QUANTITY: 18,      // R列: 在庫数量
-    STOCK_STATUS: 19,        // S列: 在庫ステータス
-    REFUND_AMOUNT: 20,       // T列: 返金額(円)
-    JOOM_FEE: 21,            // U列: Joom手数料(円)
-    SURCHARGE: 22,           // V列: サーチャージ(円)
-    PEAK_SEASON_FEE: 23,     // W列: 繁忙期料金(円)
-    PROFIT: 24,              // X列: 利益
-    EXCHANGE_RATE: 25,       // Y列: 最終為替レート
-    LAST_UPDATED: 26,        // Z列: 最終更新日時
-    NOTES: 27,               // AA列: 備考・メモ
-    JOOM_STATUS: 28,         // AB列: Joom連携ステータス
-    JOOM_LAST_EXPORT: 29     // AC列: 最終出力日時
+    SELLING_PRICE_USD: 9,    // I列: 販売価格（USD）
+    WEIGHT: 10,              // J列: 重量
+    HEIGHT_CM: 11,           // K列: 高さ(cm)
+    LENGTH_CM: 12,           // L列: 長さ(cm)
+    WIDTH_CM: 13,            // M列: 幅(cm)
+    CATEGORY: 14,            // N列: 商品カテゴリー
+    DESCRIPTION: 15,         // O列: 商品説明
+    MAIN_IMAGE_URL: 16,      // P列: メイン画像URL
+    CURRENCY: 17,            // Q列: 通貨
+    SHIPPING_PRICE: 18,      // R列: 配送価格
+    STOCK_QUANTITY: 19,      // S列: 在庫数量
+    STOCK_STATUS: 20,        // T列: 在庫ステータス
+    REFUND_AMOUNT: 21,       // U列: 返金額(円)
+    JOOM_FEE: 22,            // V列: Joom手数料(円)
+    SURCHARGE: 23,           // W列: サーチャージ(円)
+    PEAK_SEASON_FEE: 24,     // X列: 繁忙期料金(円)
+    PROFIT: 25,              // Y列: 利益
+    EXCHANGE_RATE: 26,       // Z列: 最終為替レート
+    LAST_UPDATED: 27,        // AA列: 最終更新日時
+    NOTES: 28,               // AB列: 備考・メモ
+    JOOM_STATUS: 29,         // AC列: Joom連携ステータス
+    JOOM_LAST_EXPORT: 30     // AD列: 最終出力日時
   },
   
   // 売上管理シート（Joom注文連携対応版）
