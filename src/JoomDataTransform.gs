@@ -54,18 +54,12 @@ function transformJoomOrderToSalesRow(joomOrder) {
     // 配送情報の変換
     const shippingInfo = transformShippingAddress(joomOrder.shippingAddress);
     
-    // 利益計算
-    const netProfit = calculateNetProfit(
-      priceInfo.sellingPrice,
-      productInfo.purchasePrice,
-      priceInfo.shippingCost,
-      priceInfo.commission
-    );
+    // K列（純利益）は insertOrdersToSalesSheet で計算式 =H-(I+J+P+Q+R) を設定するため、ここでは 0 を入れる（上書きされる）
     
     // 売上管理シート形式の配列を作成（37列）
     const salesRow = [
-      orderDate,                           // A列: 販売日
-      joomOrder.id,                        // B列: 注文ID
+      joomOrder.id,                        // A列: 注文ID
+      orderDate,                           // B列: 注文日
       productInfo.productId,               // C列: 商品ID（在庫管理シートのSKU）
       productInfo.productName,             // D列: 商品名
       productInfo.sku,                     // E列: SKU
@@ -74,7 +68,7 @@ function transformJoomOrderToSalesRow(joomOrder) {
       priceInfo.sellingPrice,              // H列: 販売価格
       productInfo.purchasePrice,           // I列: 仕入れ価格
       priceInfo.shippingCost,              // J列: 配送料
-      netProfit,                           // K列: 純利益
+      0,                                   // K列: 純利益（後で =H-(I+J+P+Q+R) の計算式を設定）
       registrationTime,                    // L列: データ登録日時
       
       // 注文ステータス管理
@@ -580,8 +574,16 @@ function insertOrdersToSalesSheet(salesRows) {
     const range = salesSheet.getRange(startRow, 1, numRows, numCols);
     range.setValues(salesRows);
     
+    // K列（純利益）に計算式を設定: 販売価格-(仕入れ価格+送料+手数料+付加価値税+返金額) = H-(I+J+P+Q+R)
+    const netProfitFormulas = [];
+    for (let i = 0; i < numRows; i++) {
+      const r = startRow + i;
+      netProfitFormulas.push(['=H' + r + '-(I' + r + '+J' + r + '+P' + r + '+Q' + r + '+R' + r + ')']);
+    }
+    salesSheet.getRange(startRow, 11, numRows, 1).setFormulas(netProfitFormulas);
+    
     // 日時列のフォーマット設定
-    const dateColumns = [1, 12, 15, 33, 34]; // A, L, O, AG, AH列
+    const dateColumns = [2, 12, 15, 33, 34]; // B注文日, L登録日時, O最終同期, AG出荷日, AH履行日
     dateColumns.forEach(col => {
       const dateRange = salesSheet.getRange(startRow, col, numRows, 1);
       dateRange.setNumberFormat('yyyy-mm-dd HH:mm:ss');

@@ -58,10 +58,8 @@ function onEdit(e) {
     if (range.getA1Notation() === 'B2') {
       const productId = range.getValue();
       if (productId && productId !== '') {
-        // 商品データの自動読み込み
-        setTimeout(() => {
-          loadProductDataFromInventory(productId);
-        }, 100); // 少し遅延させてセルの値が確定してから実行
+        // 商品データの自動読み込み（onEdit時点でセル値は確定しているため即時実行）
+        loadProductDataFromInventory(productId);
       }
     }
 
