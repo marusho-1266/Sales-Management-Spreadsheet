@@ -935,8 +935,7 @@ function setupProfitSheetDataValidation(sheet) {
         const lastRow = inventorySheet.getLastRow();
         const dataRowCount = Math.max(0, lastRow - 1);
         if (dataRowCount > 0) {
-          const endRow = 1 + dataRowCount;
-          const productIdRange = inventorySheet.getRange(2, 1, endRow, 1);
+          const productIdRange = inventorySheet.getRange(2, 1, dataRowCount, 1);
           const productIdValidation = SpreadsheetApp.newDataValidation()
             .requireValueInRange(productIdRange)
             .setAllowInvalid(false)
@@ -1149,13 +1148,13 @@ function loadProductDataFromInventory(productId, showFeedback = false) {
     
     try {
       // 在庫管理シートの列構造に基づいてデータを設定
-      // A: 商品ID, B: 商品名, C: SKU, D: ASIN, E: 仕入れ元, F: 仕入れ元URL, G: 仕入れ価格, I: 重量
-      profitSheet.getRange('B5').setValue(productData[2] || '');  // SKU
-      profitSheet.getRange('E5').setValue(productData[1] || '');  // 商品名
-      profitSheet.getRange('B6').setValue(productData[5] || '');  // 仕入れ元URL
-      profitSheet.getRange('E6').setValue(productData[4] || '');  // 仕入れ元
-      profitSheet.getRange('B13').setValue(productData[6] || 0);  // 仕入れ価格
-      profitSheet.getRange(PROFIT_CELLS.SELLING_PRICE).setValue(productData[7] || 0);  // 販売価格
+      // A: 商品ID, B: 商品名, C: JoomID, D: SKU, E: ASIN, F: 仕入れ元, G: 仕入れ元URL, H: 仕入れ価格, I: 販売価格, K: 重量
+      profitSheet.getRange('B5').setValue(productData[COLUMN_INDEXES.INVENTORY.SKU - 1] || '');  // SKU
+      profitSheet.getRange('E5').setValue(productData[COLUMN_INDEXES.INVENTORY.PRODUCT_NAME - 1] || '');  // 商品名
+      profitSheet.getRange('B6').setValue(productData[COLUMN_INDEXES.INVENTORY.SUPPLIER_URL - 1] || '');  // 仕入れ元URL
+      profitSheet.getRange('E6').setValue(productData[COLUMN_INDEXES.INVENTORY.SUPPLIER - 1] || '');  // 仕入れ元
+      profitSheet.getRange('B13').setValue(productData[COLUMN_INDEXES.INVENTORY.PURCHASE_PRICE - 1] || 0);  // 仕入れ価格
+      profitSheet.getRange(PROFIT_CELLS.SELLING_PRICE).setValue(productData[COLUMN_INDEXES.INVENTORY.SELLING_PRICE - 1] || 0);  // 販売価格
       profitSheet.getRange('B15').setValue(productData[COLUMN_INDEXES.INVENTORY.WEIGHT - 1] || 0);  // 重量
       
       // 容積重量計算用寸法データの設定

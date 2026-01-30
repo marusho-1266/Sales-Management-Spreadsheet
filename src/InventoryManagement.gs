@@ -38,7 +38,8 @@ function initializeInventorySheet() {
   // ヘッダー行を設定
   const headers = [
     '商品ID',
-    '商品名', 
+    '商品名',
+    'JoomID',
     'SKU',
     'ASIN',
     '仕入れ元',
@@ -320,8 +321,8 @@ function addProfitRelatedColumnsToExistingSheet() {
     if (lastRow > 1) {
       for (let row = 2; row <= lastRow; row++) {
     // 利益計算式: 販売価格-(仕入価格+配送価格+返金額+Joom手数料+サーチャージ+繁忙料金)
-    // H列: 販売価格, G列: 仕入価格, R列: 配送価格, U列: 返金額, V列: Joom手数料, W列: サーチャージ, X列: 繁忙料金
-    const formula = `=H${row}-(G${row}+R${row}+U${row}+V${row}+W${row}+X${row})`;
+    // I列: 販売価格, H列: 仕入価格, S列: 配送価格, V列: 返金額, W列: Joom手数料, X列: サーチャージ, Y列: 繁忙料金
+    const formula = `=I${row}-(H${row}+S${row}+V${row}+W${row}+X${row}+Y${row})`;
         inventorySheet.getRange(row, COLUMN_INDEXES.INVENTORY.PROFIT).setFormula(formula);
         inventorySheet.getRange(row, COLUMN_INDEXES.INVENTORY.PROFIT).setNumberFormat('#,##0');
         
@@ -338,6 +339,44 @@ function addProfitRelatedColumnsToExistingSheet() {
     
   } catch (error) {
     console.error('利益計算関連列の追加中にエラーが発生しました:', error);
+    throw error;
+  }
+}
+
+/**
+ * 既存の在庫管理シートにJoomID列を追加（C列：商品名の右隣）
+ */
+function addJoomIdColumnToExistingSheet() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const inventorySheet = spreadsheet.getSheetByName(SHEET_NAMES.INVENTORY);
+  
+  if (!inventorySheet) {
+    console.log('在庫管理シートが見つかりません');
+    return;
+  }
+  
+  try {
+    const headerRange = inventorySheet.getRange(1, 1, 1, inventorySheet.getLastColumn());
+    const headers = headerRange.getValues()[0];
+    
+    if (headers.includes('JoomID')) {
+      console.log('JoomID列は既に存在します');
+      return;
+    }
+    
+    inventorySheet.insertColumnAfter(COLUMN_INDEXES.INVENTORY.PRODUCT_NAME);
+    inventorySheet.getRange(1, COLUMN_INDEXES.INVENTORY.JOOM_ID).setValue('JoomID');
+    
+    const newHeaderRange = inventorySheet.getRange(1, COLUMN_INDEXES.INVENTORY.JOOM_ID);
+    newHeaderRange.setBackground('#4285f4');
+    newHeaderRange.setFontColor('#ffffff');
+    newHeaderRange.setFontWeight('bold');
+    newHeaderRange.setHorizontalAlignment('center');
+    inventorySheet.autoResizeColumn(COLUMN_INDEXES.INVENTORY.JOOM_ID);
+    
+    console.log('JoomID列が正常に追加されました');
+  } catch (error) {
+    console.error('JoomID列の追加中にエラーが発生しました:', error);
     throw error;
   }
 }
@@ -390,11 +429,11 @@ function addSellingPriceUsdColumnToExistingSheet() {
  */
 function addSampleData(sheet) {
   const sampleData = [
-    [1, 'iPhone 15 Pro 128GB', 'IPH15P-128', 'B0CHX1W1XY', 'Amazon', 'https://amazon.co.jp/dp/B0CHX1W1XY', 120000, 150000, '', 187, 7.6, 14.7, 0.8, '家電', '最新のiPhone 15 Pro 128GBモデル。A17 Proチップ搭載で高性能。', 'https://via.placeholder.com/500x500.jpg', 'JPY', 0, 1, '在庫あり', 0, 0, 0, 0, 30000, 150.0, '2025-09-27 00:00:00', '', '未連携', ''],
-    [2, 'MacBook Air M2 13インチ', 'MBA-M2-13', 'B0B3C2Q5XK', '楽天', 'https://item.rakuten.co.jp/example/macbook-air-m2', 140000, 180000, '', 1240, 1.13, 30.4, 21.5, '家電', 'MacBook Air M2 13インチ。M2チップで高速処理。軽量設計。', 'https://example.com/images/macbook-air-m2.jpg', 'JPY', 0, 1, '在庫あり', 0, 0, 0, 0, 40000, 150.0, '2025-09-27 00:00:00', '', '未連携', ''],
-    [3, 'AirPods Pro 第2世代', 'APP-2ND', 'B0BDJDRJ9T', 'Yahooショッピング', 'https://shopping.yahoo.co.jp/products/airpods-pro-2nd', 25000, 35000, '', 56, 4.5, 6.0, 4.5, '家電', 'AirPods Pro 第2世代。ノイズキャンセリング機能搭載。', 'https://example.com/images/airpods-pro-2nd.jpg', 'JPY', 0, 0, '売り切れ', 0, 0, 0, 0, 10000, 150.0, '2025-09-27 00:00:00', '', '未連携', ''],
-    [4, 'iPad Air 第5世代', 'IPAD-AIR-5', 'B09V4HCN9V', 'メルカリ', 'https://mercari.com/items/m123456789', 60000, 80000, '', 461, 0.6, 24.8, 17.8, '家電', 'iPad Air 第5世代。M1チップ搭載で高性能タブレット。', 'https://example.com/images/ipad-air-5.jpg', 'JPY', 0, 1, '在庫あり', 0, 0, 0, 0, 20000, 150.0, '2025-09-27 00:00:00', '', '未連携', ''],
-    [5, 'Apple Watch Series 9', 'AWS-9', 'B0CHX1W1XZ', 'ヤフオク', 'https://page.auctions.yahoo.co.jp/jp/auction/example', 45000, 60000, '', 39, 1.0, 4.5, 3.8, '家電', 'Apple Watch Series 9。健康管理とスマートウォッチ機能。', 'https://example.com/images/apple-watch-s9.jpg', 'JPY', 0, 1, '在庫あり', 0, 0, 0, 0, 15000, 150.0, '2025-09-27 00:00:00', '', '未連携', '']
+    [1, 'iPhone 15 Pro 128GB', '', 'IPH15P-128', 'B0CHX1W1XY', 'Amazon', 'https://amazon.co.jp/dp/B0CHX1W1XY', 120000, 150000, '', 187, 7.6, 14.7, 0.8, '家電', '最新のiPhone 15 Pro 128GBモデル。A17 Proチップ搭載で高性能。', 'https://via.placeholder.com/500x500.jpg', 'JPY', 0, 1, '在庫あり', 0, 0, 0, 0, 30000, 150.0, '2025-09-27 00:00:00', '', '未連携', ''],
+    [2, 'MacBook Air M2 13インチ', '', 'MBA-M2-13', 'B0B3C2Q5XK', '楽天', 'https://item.rakuten.co.jp/example/macbook-air-m2', 140000, 180000, '', 1240, 1.13, 30.4, 21.5, '家電', 'MacBook Air M2 13インチ。M2チップで高速処理。軽量設計。', 'https://example.com/images/macbook-air-m2.jpg', 'JPY', 0, 1, '在庫あり', 0, 0, 0, 0, 40000, 150.0, '2025-09-27 00:00:00', '', '未連携', ''],
+    [3, 'AirPods Pro 第2世代', '', 'APP-2ND', 'B0BDJDRJ9T', 'Yahooショッピング', 'https://shopping.yahoo.co.jp/products/airpods-pro-2nd', 25000, 35000, '', 56, 4.5, 6.0, 4.5, '家電', 'AirPods Pro 第2世代。ノイズキャンセリング機能搭載。', 'https://example.com/images/airpods-pro-2nd.jpg', 'JPY', 0, 0, '売り切れ', 0, 0, 0, 0, 10000, 150.0, '2025-09-27 00:00:00', '', '未連携', ''],
+    [4, 'iPad Air 第5世代', '', 'IPAD-AIR-5', 'B09V4HCN9V', 'メルカリ', 'https://mercari.com/items/m123456789', 60000, 80000, '', 461, 0.6, 24.8, 17.8, '家電', 'iPad Air 第5世代。M1チップ搭載で高性能タブレット。', 'https://example.com/images/ipad-air-5.jpg', 'JPY', 0, 1, '在庫あり', 0, 0, 0, 0, 20000, 150.0, '2025-09-27 00:00:00', '', '未連携', ''],
+    [5, 'Apple Watch Series 9', '', 'AWS-9', 'B0CHX1W1XZ', 'ヤフオク', 'https://page.auctions.yahoo.co.jp/jp/auction/example', 45000, 60000, '', 39, 1.0, 4.5, 3.8, '家電', 'Apple Watch Series 9。健康管理とスマートウォッチ機能。', 'https://example.com/images/apple-watch-s9.jpg', 'JPY', 0, 1, '在庫あり', 0, 0, 0, 0, 15000, 150.0, '2025-09-27 00:00:00', '', '未連携', '']
   ];
   
   const dataRange = sheet.getRange(2, 1, sampleData.length, sampleData[0].length);
@@ -453,9 +492,9 @@ function setupProfitCalculation(sheet) {
   const lastRow = sheet.getLastRow();
   
   // 利益計算式: 販売価格-(仕入価格+配送価格+返金額+Joom手数料+サーチャージ+繁忙料金)
-  // H列: 販売価格, G列: 仕入価格, R列: 配送価格, U列: 返金額, V列: Joom手数料, W列: サーチャージ, X列: 繁忙料金
+  // I列: 販売価格, H列: 仕入価格, S列: 配送価格, V列: 返金額, W列: Joom手数料, X列: サーチャージ, Y列: 繁忙料金
   for (let row = 2; row <= lastRow; row++) {
-    const formula = `=H${row}-(G${row}+R${row}+U${row}+V${row}+W${row}+X${row})`;
+    const formula = `=I${row}-(H${row}+S${row}+V${row}+W${row}+X${row}+Y${row})`;
     sheet.getRange(row, COLUMN_INDEXES.INVENTORY.PROFIT).setFormula(formula);
   }
 }

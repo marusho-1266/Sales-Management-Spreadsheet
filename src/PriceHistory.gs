@@ -424,8 +424,8 @@ function syncPriceHistoryFromInventory() {
   for (let i = 1; i < inventoryData.length; i++) {
     const productId = inventoryData[i][0];
     const productName = inventoryData[i][1];
-    const purchasePrice = inventoryData[i][6]; // 仕入れ価格
-    const sellingPrice = inventoryData[i][7]; // 販売価格
+    const purchasePrice = inventoryData[i][COLUMN_INDEXES.INVENTORY.PURCHASE_PRICE - 1]; // 仕入れ価格
+    const sellingPrice = inventoryData[i][COLUMN_INDEXES.INVENTORY.SELLING_PRICE - 1]; // 販売価格
     
     if (productId && productName && purchasePrice && sellingPrice) {
       // ルックアップテーブルから現在の価格を取得（O(1)）

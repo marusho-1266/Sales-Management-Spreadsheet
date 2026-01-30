@@ -35,6 +35,10 @@ function saveNewProduct(formData) {
     // 販売価格（USD）列が存在するかチェックし、存在しない場合は追加
     const headerRange = inventorySheet.getRange(1, 1, 1, inventorySheet.getLastColumn());
     const headers = headerRange.getValues()[0];
+    if (!headers.includes('JoomID')) {
+      console.log('JoomID列が存在しないため、追加します');
+      addJoomIdColumnToExistingSheet();
+    }
     if (!headers.includes('販売価格（USD）')) {
       console.log('販売価格（USD）列が存在しないため、追加します');
       addSellingPriceUsdColumnToExistingSheet();
@@ -72,6 +76,7 @@ function saveNewProduct(formData) {
     const newRowData = [
       formData.productId,           // 商品ID
       formData.productName,         // 商品名
+      formData.joomId || '',        // JoomID
       formData.sku || '',           // SKU
       formData.asin || '',          // ASIN
       formData.supplier,            // 仕入れ元
@@ -129,8 +134,8 @@ function saveNewProduct(formData) {
     inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.EXCHANGE_RATE, 1, 1).setNumberFormat('#,##0.00');   // 最終為替レート
     
     // 利益計算式: 販売価格-(仕入価格+配送価格+返金額+Joom手数料+サーチャージ+繁忙料金)
-    // H列: 販売価格, G列: 仕入価格, R列: 配送価格, U列: 返金額, V列: Joom手数料, W列: サーチャージ, X列: 繁忙料金
-    const profitFormula = `=H${lastRow}-(G${lastRow}+R${lastRow}+U${lastRow}+V${lastRow}+W${lastRow}+X${lastRow})`;
+    // I列: 販売価格, H列: 仕入価格, S列: 配送価格, V列: 返金額, W列: Joom手数料, X列: サーチャージ, Y列: 繁忙料金
+    const profitFormula = `=I${lastRow}-(H${lastRow}+S${lastRow}+V${lastRow}+W${lastRow}+X${lastRow}+Y${lastRow})`;
     inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.PROFIT, 1, 1).setFormula(profitFormula);
     inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.PROFIT, 1, 1).setNumberFormat('#,##0');   // 利益
     
@@ -1058,10 +1063,10 @@ function getProductInputFormHtml() {
             // 商品IDを再生成（新しい商品追加のため）
             generateNewProductId();
             
-            // 3秒後にフォームを閉じる
+            // 0.5秒後にフォームを閉じる（成功メッセージを短く表示）
             setTimeout(function() {
               closeForm();
-            }, 3000);
+            }, 500);
           }, 800);
         }, 500);
       } else {
