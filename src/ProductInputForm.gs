@@ -148,6 +148,15 @@ function saveNewProduct(formData) {
       // 価格履歴の作成に失敗しても商品追加は継続
     }
     
+    // 利益計算シートの商品IDドロップダウンを更新（新規追加をリストに反映）
+    try {
+      if (typeof refreshProfitSheetProductIdDropdown === 'function') {
+        refreshProfitSheetProductIdDropdown();
+      }
+    } catch (dropdownError) {
+      console.warn('利益計算ドロップダウン更新中にエラーが発生しました:', dropdownError);
+    }
+    
     console.log('新商品が正常に保存されました:', formData.productName);
     
     return {
