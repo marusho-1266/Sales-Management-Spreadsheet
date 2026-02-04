@@ -956,6 +956,36 @@ function setupProfitSheetDataValidation(sheet) {
 }
 
 /**
+ * 利益計算シートのB2（商品ID）ドロップダウンを在庫管理シートの現在の行数で再設定する。
+ * 新規商品追加後に呼び出すことで、ドロップダウンに新商品が反映される。
+ */
+function refreshProfitSheetProductIdDropdown() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const profitSheet = ss.getSheetByName(SHEET_NAMES.PROFIT);
+    const inventorySheet = ss.getSheetByName(SHEET_NAMES.INVENTORY);
+    if (!profitSheet || !inventorySheet) {
+      return;
+    }
+    const lastRow = inventorySheet.getLastRow();
+    const numDataRows = Math.max(0, lastRow - 1);
+    if (numDataRows <= 0) {
+      return;
+    }
+    const productIdRange = inventorySheet.getRange(2, 1, lastRow - 1, 1);
+    const productIdValidation = SpreadsheetApp.newDataValidation()
+      .requireValueInRange(productIdRange)
+      .setAllowInvalid(false)
+      .setHelpText('在庫管理に登録されている商品IDを選択してください')
+      .build();
+    profitSheet.getRange('B2').setDataValidation(productIdValidation);
+    console.log('利益計算シートの商品IDドロップダウンを更新しました（在庫管理 A2:A' + lastRow + '）');
+  } catch (e) {
+    console.warn('商品IDドロップダウン更新中にエラー:', e);
+  }
+}
+
+/**
  * 利益計算シートのセル保護設定
  */
 function setupProfitSheetProtection(sheet) {
@@ -1388,7 +1418,9 @@ function validateProductData(productData) {
       errors.push('仕入価格が正しく設定されていません');
     }
     
-    if (!productData[COLUMN_INDEXES.INVENTORY.WEIGHT - 1] || productData[COLUMN_INDEXES.INVENTORY.WEIGHT - 1] <= 0) {
+    // 重量は0以上を許可（未設定・負の値のみエラー）
+    const weightVal = productData[COLUMN_INDEXES.INVENTORY.WEIGHT - 1];
+    if (weightVal === null || weightVal === undefined || weightVal === '' || Number(weightVal) < 0) {
       errors.push('重量が正しく設定されていません');
     }
     
