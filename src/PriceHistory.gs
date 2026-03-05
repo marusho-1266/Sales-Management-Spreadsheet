@@ -20,7 +20,7 @@ function getProductNameById(spreadsheet, productId) {
     
     const inventoryData = inventorySheet.getDataRange().getValues();
     for (let i = 1; i < inventoryData.length; i++) {
-      if (inventoryData[i][0] === productId) {
+      if (String(inventoryData[i][0]).trim() === String(productId).trim()) {
         return inventoryData[i][1] || '';
       }
     }
@@ -254,9 +254,10 @@ function updatePriceHistory(productId, newPurchasePrice, newSellingPrice, notes 
   const dataRange = priceHistorySheet.getDataRange();
   const values = dataRange.getValues();
   
+  // 商品IDは数値・文字列混在の可能性があるため型を揃えて比較
   let existingRowIndex = -1;
   for (let i = 1; i < values.length; i++) {
-    if (values[i][0] === validProductId) {
+    if (String(values[i][0]).trim() === String(validProductId).trim()) {
       existingRowIndex = i + 1; // 1ベースの行番号
       break;
     }
@@ -410,10 +411,11 @@ function syncPriceHistoryFromInventory() {
   const priceHistoryLookup = new Map();
   
   // 価格履歴データのルックアップテーブルを作成（O(m)）
+  // Mapのキーは文字列で統一（数値・文字列混在を吸収）
   for (let j = 1; j < priceHistoryData.length; j++) {
     const productId = priceHistoryData[j][0];
-    if (productId) {
-      priceHistoryLookup.set(productId, {
+    if (productId !== undefined && productId !== null && productId !== '') {
+      priceHistoryLookup.set(String(productId).trim(), {
         currentPurchasePrice: priceHistoryData[j][2], // 現在仕入れ価格
         currentSellingPrice: priceHistoryData[j][6]   // 現在販売価格
       });
@@ -427,9 +429,11 @@ function syncPriceHistoryFromInventory() {
     const purchasePrice = inventoryData[i][COLUMN_INDEXES.INVENTORY.PURCHASE_PRICE - 1]; // 仕入れ価格
     const sellingPrice = inventoryData[i][COLUMN_INDEXES.INVENTORY.SELLING_PRICE - 1]; // 販売価格
     
-    if (productId && productName && purchasePrice && sellingPrice) {
+    const p = Number(purchasePrice);
+    const s = Number(sellingPrice);
+    if (productId != null && productId !== '' && productName && !isNaN(p) && p >= 0 && !isNaN(s) && s >= 0) {
       // ルックアップテーブルから現在の価格を取得（O(1)）
-      const existingRecord = priceHistoryLookup.get(productId);
+      const existingRecord = priceHistoryLookup.get(String(productId).trim());
       
       // 既存レコードがあり、価格に変動がない場合はスキップ
       if (existingRecord && 

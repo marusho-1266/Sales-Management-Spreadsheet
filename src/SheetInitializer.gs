@@ -38,17 +38,8 @@ function initializeAllSheets() {
     initializeProfitSheet();
     initializationResults.push('✓ 利益計算シート（事前利益計算特化）');
     
-    // 利益計算シートの検証を実行
-    console.log('7. 利益計算シートの検証...');
-    const profitSheetValid = verifyProfitSheetLayout();
-    if (profitSheetValid) {
-      initializationResults.push('✓ 利益計算シート検証');
-    } else {
-      initializationResults.push('⚠ 利益計算シート検証（一部警告あり）');
-    }
-    
     // カスタムメニューを設定
-    console.log('8. カスタムメニューの設定...');
+    console.log('7. カスタムメニューの設定...');
     setupCustomMenu();
     initializationResults.push('✓ カスタムメニュー');
     
@@ -1383,6 +1374,15 @@ function syncProfitDataToInventory() {
       });
     });
 
+    // スクリプトによる更新では編集時トリガーが発火しないため、価格履歴を明示的に更新
+    const purchasePrice = inventorySheet.getRange(targetRow, COLUMN_INDEXES.INVENTORY.PURCHASE_PRICE).getValue();
+    const sellingPrice = inventorySheet.getRange(targetRow, COLUMN_INDEXES.INVENTORY.SELLING_PRICE).getValue();
+    const p = Number(purchasePrice);
+    const s = Number(sellingPrice);
+    if (!isNaN(p) && p >= 0 && !isNaN(s) && s >= 0) {
+      updatePriceHistory(productId, purchasePrice, sellingPrice, '利益計算シートから反映');
+    }
+
     const summaryLines = results.map(function(result) {
       var sym = result.summarySymbol || '¥';
       var fmt = function(v) { return sym + (Number(v) || 0).toLocaleString(); };
@@ -1548,16 +1548,12 @@ function initializeProfitSheetOnly() {
     // 利益計算シートの初期化
     initializeProfitSheet();
     
-    // 検証を実行
-    const isValid = verifyProfitSheetLayout();
-    
     const resultMessage = '利益計算シートの初期化が完了しました。\n\n' +
                          '初期化内容:\n' +
                          '✓ シート作成・設定\n' +
                          '✓ 名前付き範囲設定\n' +
                          '✓ データ検証（ドロップダウン）設定\n' +
                          '✓ 参照式設定\n\n' +
-                         '検証結果: ' + (isValid ? '正常' : '一部警告あり') + '\n\n' +
                          '利益計算機能が利用可能になりました。';
     
     SpreadsheetApp.getUi().alert('利益計算シート初期化完了', resultMessage, SpreadsheetApp.getUi().ButtonSet.OK);
@@ -1704,156 +1700,64 @@ function setupProfitSheetFormulas(sheet) {
 }
 
 /**
- * 利益計算シートの主要セル配置の簡易検証（ログ出力）
- */
-function verifyProfitSheetLayout() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(SHEET_NAMES.PROFIT);
-  if (!sheet) {
-    console.log('利益計算シートが存在しません');
-    return false;
-  }
-  
-  // 主要セルの存在確認と値の表示
-  const keyCells = [
-    { cell: 'B8', name: '利益（円）' },
-    { cell: 'B9', name: '利益率（%）' },
-    { cell: 'B10', name: '利益（返金込み）' },
-    { cell: 'B11', name: '利益率（返金込み）' },
-    { cell: 'B12', name: '販売価格' },
-    { cell: 'B13', name: '仕入価格' },
-    { cell: 'B15', name: '重量（g）' },
-    { cell: 'E15', name: '発送方法' },
-    { cell: 'B16', name: '配送地帯' },
-    { cell: 'B27', name: '販売ターゲット地域（B16から自動取得）' },
-    { cell: 'B19', name: '商品カテゴリー' }
-  ];
-  
-  let ok = true;
-  console.log('=== 利益計算シート セル配置検証 ===');
-  
-  for (let i = 0; i < keyCells.length; i++) {
-    const { cell, name } = keyCells[i];
-    try {
-      const range = sheet.getRange(cell);
-      const value = range.getValue();
-      console.log(`${cell} (${name}): ${value || '(空)'}`);
-    } catch (e) {
-      ok = false;
-      console.log(`セル参照エラー: ${cell} (${name}) - ${e.message}`);
-    }
-  }
-  
-  // 名前付き範囲の確認
-  console.log('=== 名前付き範囲確認 ===');
-  const namedRanges = [
-    '為替レート_USDJPY',
-    '送料マスタ_配送方法',
-    '送料マスタ_容積重量係数',
-    '関税率マスタ_カテゴリー',
-    '関税率マスタ_税率',
-  ];
-  
-  for (let i = 0; i < namedRanges.length; i++) {
-    const rangeName = namedRanges[i];
-    try {
-      const range = ss.getRangeByName(rangeName);
-      if (range) {
-        console.log(`${rangeName}: ${range.getA1Notation()} (設定済み)`);
-      } else {
-        console.log(`${rangeName}: 未設定`);
-      }
-    } catch (e) {
-      console.log(`${rangeName}: エラー - ${e.message}`);
-    }
-  }
-  
-  console.log('利益計算シート配置検証結果:', ok ? 'OK' : '一部NG');
-  return ok;
-}
-
-/**
  * カスタムメニューの設定（Joom注文連携対応版）
  */
 function setupCustomMenu() {
   const ui = SpreadsheetApp.getUi();
   
-  ui.createMenu('📊 EC管理システム')
+  ui.createMenu('EC管理システム')
     .addSubMenu(
-      ui.createMenu('📦 商品管理')
+      ui.createMenu('商品管理')
         .addItem('新商品追加', 'showProductInputForm')
         .addItem('商品削除', 'showProductDeleteMenu')
     )
     .addSubMenu(
-      ui.createMenu('📈 売上管理')
+      ui.createMenu('売上管理')
         .addItem('注文データ入力', 'showSalesInputFormMenu')
-        .addItem('Joom注文同期', 'showJoomOrderSyncMenu')
-        .addItem('注文ステータス管理', 'showOrderStatusManagement')
+        .addSubMenu(
+          ui.createMenu('Joom注文取得')
+            .addItem('最新注文を取得', 'fetchLatestJoomOrders')
+            .addItem('日時範囲で取得', 'fetchJoomOrdersByDateMenu')
+            .addItem('特定注文を取得', 'fetchSpecificJoomOrder')
+            .addItem('取得状況確認', 'checkOrderFetchStatus')
+        )
     )
     .addSubMenu(
-      ui.createMenu('🔄 在庫チェック')
-        .addItem('全商品在庫チェック', 'checkAllInventory')
-        .addItem('選択商品チェック', 'checkSelectedInventory')
-        .addItem('定期チェック設定', 'setupScheduledCheck')
-    )
-    .addSubMenu(
-      ui.createMenu('📤 データ出力')
+      ui.createMenu('データ出力')
         .addItem('Joom用CSV出力', 'exportUnlinkedProductsCsv')
     )
     .addSubMenu(
-      ui.createMenu('🛠️ システム管理')
-        .addItem('全シート初期化', 'initializeAllSheets')
-        .addItem('利益計算シート初期化', 'initializeProfitSheetOnly')
-        .addSeparator()
-        .addItem('個別シート初期化・再作成', 'showIndividualSheetInitializationMenu')
-        .addItem('データバックアップ', 'showDataBackupMenu')
-    )
-    .addSubMenu(
-      ui.createMenu('⚙️ 設定')
-        .addItem('設定シート初期化', 'initializeSettingsSheet')
-        .addItem('設定値一括更新', 'showSettingsUpdateForm')
-    )
-    .addSubMenu(
-      ui.createMenu('💰 利益計算')
-        .addItem('利益計算シート初期化', 'initializeProfitSheetOnly')
-        .addItem('利益計算シート検証', 'verifyProfitSheetLayout')
-        .addItem('参照式更新', 'updateProfitSheetFormulas')
-        .addItem('利益計算データを在庫管理へ反映', 'syncProfitDataToInventory')
-        .addSeparator()
+      ui.createMenu('利益計算')
         .addItem('商品データ読み込み', 'loadProductDataMenu')
+        .addItem('利益計算データを在庫管理へ反映', 'syncProfitDataToInventory')
+        .addItem('利益計算シート初期化', 'initializeProfitSheetOnly')
+        .addItem('参照式更新', 'updateProfitSheetFormulas')
     )
     .addSubMenu(
-      ui.createMenu('💰 価格履歴')
+      ui.createMenu('価格履歴')
         .addItem('価格履歴同期', 'syncPriceHistoryMenu')
         .addSeparator()
-        .addItem('📧 メールアドレス設定', 'showEmailAddressSettings')
-        .addItem('🔔 通知有効化設定', 'showNotificationEnableSettings')
+        .addItem('メールアドレス設定', 'showEmailAddressSettings')
+        .addItem('通知有効化設定', 'showNotificationEnableSettings')
     )
     .addSubMenu(
-      ui.createMenu('⚙️ システム設定')
+      ui.createMenu('システム管理・設定')
+        .addItem('全シート初期化', 'initializeAllSheets')
+        .addItem('個別シート初期化・再作成', 'showIndividualSheetInitializationMenu')
+        .addSeparator()
+        .addItem('設定値一括更新', 'showSettingsUpdateForm')
         .addItem('通知設定', 'showNotificationSettings')
     )
     .addSubMenu(
-      ui.createMenu('🔗 JoomAPI設定')
-        .addItem('🎫 トークン取得', 'acquireJoomToken')
-        .addItem('📊 トークン取得状況', 'checkTokenAcquisitionStatus')
-        .addItem('🔑 トークンステータス確認', 'showJoomTokenStatus')
-        .addItem('🔄 トークンリフレッシュ', 'showJoomTokenRefreshMenu')
-        .addItem('🗑️ トークンリセット', 'resetJoomTokens')
+      ui.createMenu('JoomAPI設定')
+        .addItem('トークン取得', 'acquireJoomToken')
+        .addItem('トークン取得状況', 'checkTokenAcquisitionStatus')
+        .addItem('トークンステータス確認', 'showJoomTokenStatus')
+        .addItem('トークンリフレッシュ', 'showJoomTokenRefreshMenu')
+        .addItem('トークンリセット', 'resetJoomTokens')
         .addSeparator()
-        .addItem('⏰ 自動同期設定', 'showSyncTriggerSettings')
-        .addItem('📊 同期状況確認', 'showSyncStatus')
-    )
-    .addSubMenu(
-      ui.createMenu('📋 Joom注文取得')
-        .addItem('🔄 最新注文を取得', 'fetchLatestJoomOrders')
-        .addItem('📅 日時範囲で取得', 'fetchJoomOrdersByDateMenu')
-        .addItem('🔍 特定注文を取得', 'fetchSpecificJoomOrder')
-        .addItem('📊 取得状況確認', 'checkOrderFetchStatus')
-        .addSeparator()
-        .addItem('🐛 デバッグ: 最新注文データ表示', 'debugShowLatestOrdersRawData')
-        .addItem('🐛 デバッグ: 特定注文データ表示', 'debugShowSpecificOrderRawData')
-        .addItem('🐛 デバッグ: 日時範囲データ表示', 'debugShowDateRangeOrdersRawData')
+        .addItem('自動同期設定', 'showSyncTriggerSettings')
+        .addItem('同期状況確認', 'showSyncStatus')
     )
     .addToUi();
 }
@@ -1879,30 +1783,6 @@ function showSalesInputFormMenu() {
     const ui = SpreadsheetApp.getUi();
     ui.alert('エラー', '売上データ入力フォームの表示中にエラーが発生しました。', ui.ButtonSet.OK);
   }
-}
-
-/**
- * 全商品在庫チェックの実行
- */
-function checkAllInventory() {
-  const ui = SpreadsheetApp.getUi();
-  ui.alert('全商品在庫チェック', '全商品在庫チェック機能は今後実装予定です。', ui.ButtonSet.OK);
-}
-
-/**
- * 選択商品在庫チェックの実行
- */
-function checkSelectedInventory() {
-  const ui = SpreadsheetApp.getUi();
-  ui.alert('選択商品チェック', '選択商品チェック機能は今後実装予定です。', ui.ButtonSet.OK);
-}
-
-/**
- * 定期チェック設定の表示
- */
-function setupScheduledCheck() {
-  const ui = SpreadsheetApp.getUi();
-  ui.alert('定期チェック設定', '定期チェック設定機能は今後実装予定です。', ui.ButtonSet.OK);
 }
 
 
@@ -2071,31 +1951,6 @@ function showSettingsUpdateForm() {
 /**
  * 新規メニュー関数の追加
  */
-
-/**
- * Joom注文同期メニューの表示
- */
-function showJoomOrderSyncMenu() {
-  const ui = SpreadsheetApp.getUi();
-  ui.alert('Joom注文同期', 'Joom注文同期機能は今後実装予定です。', ui.ButtonSet.OK);
-}
-
-/**
- * 注文ステータス管理メニューの表示
- */
-function showOrderStatusManagement() {
-  const ui = SpreadsheetApp.getUi();
-  ui.alert('注文ステータス管理', '注文ステータス管理機能は今後実装予定です。', ui.ButtonSet.OK);
-}
-
-/**
- * データバックアップメニューの表示
- */
-function showDataBackupMenu() {
-  const ui = SpreadsheetApp.getUi();
-  ui.alert('データバックアップ', 'データバックアップ機能は今後実装予定です。', ui.ButtonSet.OK);
-}
-
 
 /**
  * 個別シート初期化・再作成メニューの表示

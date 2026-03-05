@@ -76,7 +76,7 @@ function doPost(e) {
     }
     
     // スプレッドシートを更新
-    const result = updateInventorySheet(csvRows);
+    const result = updateInventoryFromCsv(csvRows);
     
     // 結果をJSON形式で返す
     return ContentService.createTextOutput(JSON.stringify(result))
@@ -92,18 +92,42 @@ function doPost(e) {
 }
 
 /**
- * Webアプリのエントリーポイント（GETリクエスト）
- * Google Apps ScriptのWebアプリとして公開する際に必要
- * 既存の互換性のために維持
+ * Webアプリの統合エントリーポイント（GETリクエスト）
+ * パラメータに応じて適切なハンドラーに振り分ける
+ * - code / error パラメータ: Joom OAuth認証コールバック
+ * - fileId / csvData パラメータ: CSV在庫更新
  * 
  * @param {GoogleAppsScript.Events.DoGet} e - GETリクエストイベント
  * @returns {HtmlOutput|TextOutput} レスポンス
  */
 function doGet(e) {
+  console.log('=== doGet統合ルーター ===');
+  console.log('パラメータ:', JSON.stringify(e.parameter));
+
+  if (e.parameter.code || e.parameter.error) {
+    return handleJoomOAuthCallback(e);
+  }
+
+  if (e.parameter.fileId || e.parameter.csvData) {
+    return handleCsvInventoryUpdate(e);
+  }
+
+  return ContentService.createTextOutput(JSON.stringify({
+    success: true,
+    message: 'EC管理システム WebApp is running',
+    timestamp: new Date().toISOString()
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * CSV在庫更新ハンドラー
+ * 統合doGetルーターから呼び出される
+ * 
+ * @param {GoogleAppsScript.Events.DoGet} e - GETリクエストイベント
+ * @returns {TextOutput} JSONレスポンス
+ */
+function handleCsvInventoryUpdate(e) {
   try {
-    console.log('=== doGet関数が呼び出されました ===');
-    console.log('パラメータ:', JSON.stringify(e.parameter));
-    
     // 方法1: ファイルIDからCSVを読み込む（推奨）
     const fileId = e.parameter.fileId;
     if (fileId) {
@@ -116,9 +140,8 @@ function doGet(e) {
         const csvRows = parseCsvWithMultilineSupport(csvContent);
         console.log('CSVデータをパースしました:', csvRows.length, '行');
         
-        const result = updateInventorySheet(csvRows);
+        const result = updateInventoryFromCsv(csvRows);
         
-        // ファイルを削除（成功時のみ）
         if (result && result.success) {
           try {
             csvFile.setTrashed(true);
@@ -146,7 +169,6 @@ function doGet(e) {
     if (csvData) {
       console.log('URLパラメータからCSVデータを取得します（長さ:', csvData.length, '文字）');
       
-      // URLデコード
       let decodedCsv;
       try {
         decodedCsv = decodeURIComponent(csvData);
@@ -159,7 +181,6 @@ function doGet(e) {
         })).setMimeType(ContentService.MimeType.JSON);
       }
       
-      // CSVをパース
       let csvRows;
       try {
         csvRows = parseCsvWithMultilineSupport(decodedCsv);
@@ -181,15 +202,12 @@ function doGet(e) {
         })).setMimeType(ContentService.MimeType.JSON);
       }
       
-      // スプレッドシートを更新
-      const result = updateInventorySheet(csvRows);
+      const result = updateInventoryFromCsv(csvRows);
       
-      // 結果をJSON形式で返す
       return ContentService.createTextOutput(JSON.stringify(result))
         .setMimeType(ContentService.MimeType.JSON);
     }
     
-    // パラメータがない場合
     const errorMsg = 'fileIdまたはcsvDataパラメータが必要です';
     console.error(errorMsg);
     return ContentService.createTextOutput(JSON.stringify({
@@ -198,7 +216,7 @@ function doGet(e) {
     })).setMimeType(ContentService.MimeType.JSON);
     
   } catch (error) {
-    console.error('doGet関数でエラーが発生しました:', error, error.stack);
+    console.error('handleCsvInventoryUpdate関数でエラーが発生しました:', error, error.stack);
     return ContentService.createTextOutput(JSON.stringify({
       success: false,
       error: 'サーバーエラーが発生しました'
@@ -227,7 +245,7 @@ function updateSpreadsheetFromUrl(csvData) {
     }
     
     // スプレッドシートを更新
-    return updateInventorySheet(csvRows);
+    return updateInventoryFromCsv(csvRows);
     
   } catch (error) {
     console.error('スプレッドシート更新エラー:', error);
@@ -241,7 +259,7 @@ function updateSpreadsheetFromUrl(csvData) {
  * @param {Array<Array<string>>} csvRows - パース済みCSVデータ
  * @returns {Object} 更新結果
  */
-function updateInventorySheet(csvRows) {
+function updateInventoryFromCsv(csvRows) {
   try {
     // ヘッダー行を取得
     const headers = csvRows[0];
@@ -522,6 +540,11 @@ function updateInventorySheet(csvRows) {
       inventorySheet.getRange(startRow, lastUpdatedCol, numRows, 1).setValues(lastUpdatedValues);
     }
     
+    // 仕入れ価格を更新した場合、プログラムによる更新では編集時トリガーが発火しないため価格履歴を明示的に同期
+    if (priceUpdateCount > 0) {
+      syncPriceHistoryFromInventory();
+    }
+    
     // 見つからなかったURLをカウント
     notFoundCount = csvMap.size;
     
@@ -566,7 +589,7 @@ function updateInventorySheet(csvRows) {
  */
 function testUpdateFromCsv(csvContent) {
   const csvRows = parseCsvWithMultilineSupport(csvContent);
-  return updateInventorySheet(csvRows);
+  return updateInventoryFromCsv(csvRows);
 }
 
 /**
