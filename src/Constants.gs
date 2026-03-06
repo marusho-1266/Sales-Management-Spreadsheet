@@ -331,8 +331,12 @@ const JOOM_CSV_CONFIG = {
  * メッセージ定数
  */
 const MESSAGES = {
+  PROMPT: {
+    PRODUCT_DELETE_ENTER_ID: '削除する商品IDを入力してください（在庫管理シートのA列の値）:'
+  },
   SUCCESS: {
     PRODUCT_SAVED: '商品が正常に保存されました',
+    PRODUCT_DELETED: '商品ID {id} ({name}) を削除しました',
     SALES_SAVED: '注文データが正常に保存されました',
     SHEET_INITIALIZED: 'シートの初期化が完了しました',
     CSV_EXPORTED: 'Joom用CSVの出力が完了しました',
@@ -345,6 +349,8 @@ const MESSAGES = {
     VALIDATION_FAILED: '入力データの検証に失敗しました',
     CSV_EXPORT_FAILED: 'CSV出力中にエラーが発生しました',
     INVALID_DATA: '無効なデータが検出されました',
-    INVENTORY_SYNC_FAILED: '在庫管理シートの更新に失敗しました'
+    INVENTORY_SYNC_FAILED: '在庫管理シートの更新に失敗しました',
+    PRODUCT_DELETE_ENTER_ID_EMPTY: '商品IDが入力されていません。',
+    PRODUCT_DELETE_NOT_FOUND: '商品ID "{id}" が見つかりません。在庫管理シートに登録されている商品IDを入力してください。'
   }
 };
