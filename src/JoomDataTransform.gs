@@ -616,7 +616,7 @@ function insertOrdersToSalesSheet(salesRows) {
  * @param {Array} orders - 注文データ配列
  * @returns {number} 更新された商品数
  */
-function updateInventorySheet(orders) {
+function updateInventoryFromJoomOrders(orders) {
   try {
     console.log('在庫管理シート更新開始:', orders.length, '件の注文');
     
@@ -762,7 +762,7 @@ function batchTransformAndInsertOrders(joomOrders) {
     
     // 在庫管理シートを更新（成功した注文のみ）
     if (insertedCount > 0 && successfulOrders.length > 0) {
-      updateInventorySheet(successfulOrders);
+      updateInventoryFromJoomOrders(successfulOrders);
     }
     
     const result = {

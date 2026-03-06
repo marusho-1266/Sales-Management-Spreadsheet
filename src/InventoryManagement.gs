@@ -527,7 +527,7 @@ function onInventorySheetEdit(e) {
       return;
     }
     
-    // 仕入れ価格（G列）または販売価格（H列）が変更された場合のみ処理
+    // 仕入れ価格（H列）または販売価格（I列）が変更された場合のみ処理
     const column = range.getColumn();
     if (column !== COLUMN_INDEXES.INVENTORY.PURCHASE_PRICE && 
         column !== COLUMN_INDEXES.INVENTORY.SELLING_PRICE) {
@@ -546,7 +546,10 @@ function onInventorySheetEdit(e) {
     const purchasePrice = sheet.getRange(row, COLUMN_INDEXES.INVENTORY.PURCHASE_PRICE).getValue();
     const sellingPrice = sheet.getRange(row, COLUMN_INDEXES.INVENTORY.SELLING_PRICE).getValue();
     
-    if (purchasePrice && sellingPrice) {
+    // 0 でも更新対象とする（purchasePrice && sellingPrice だと 0 が falsy でスキップされる）
+    const p = Number(purchasePrice);
+    const s = Number(sellingPrice);
+    if (!isNaN(p) && p >= 0 && !isNaN(s) && s >= 0) {
       // 価格履歴を更新
       updatePriceHistory(productId, purchasePrice, sellingPrice, '在庫管理シートから自動更新');
     }
