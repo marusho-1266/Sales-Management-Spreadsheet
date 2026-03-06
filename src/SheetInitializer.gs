@@ -137,9 +137,6 @@ function initializeProfitSheet() {
     console.log('マスタ名前付き範囲の設定中に警告:', e);
   }
 
-  // データ検証の設定
-  setupProfitSheetDataValidation(sheet);
-
   // 参照式の設定
   setupProfitSheetFormulas(sheet);
   
