@@ -506,6 +506,22 @@ function getProductInputFormHtml() {
       flex-direction: column;
     }
     
+    .validation-error-banner {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 12px 20px;
+      background: #f4cccc;
+      color: #ea4335;
+      font-weight: 600;
+      font-size: 14px;
+      text-align: center;
+      z-index: 999;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      display: none;
+    }
+    
     .loading-spinner {
       width: 50px;
       height: 50px;
@@ -595,6 +611,11 @@ function getProductInputFormHtml() {
   </style>
 </head>
 <body>
+  <!-- バリデーションエラー表示（スクロール位置に関係なく常に表示） -->
+  <div class="validation-error-banner" id="validationErrorBanner">
+    ⚠️ 入力内容に誤りがあります。該当箇所へスクロールしました。
+  </div>
+  
   <!-- ローディングオーバーレイ -->
   <div class="loading-overlay" id="loadingOverlay">
     <div class="loading-spinner"></div>
@@ -630,6 +651,13 @@ function getProductInputFormHtml() {
             <label for="productName">商品名 <span class="required">*</span></label>
             <input type="text" id="productName" name="productName" placeholder="例: iPhone 15 Pro 128GB" required>
             <div class="error-message" id="productNameError">商品名は必須です</div>
+          </div>
+        </div>
+        
+        <div class="form-row">
+          <div class="form-group full-width">
+            <label for="joomId">JoomID</label>
+            <input type="text" id="joomId" name="joomId" placeholder="Joom出品後の製品ID（任意）">
           </div>
         </div>
         
@@ -848,6 +876,7 @@ function getProductInputFormHtml() {
     
     // 処理状態管理
     var isProcessing = false;
+    var validationBannerHideTimeout = null;
     var progressSteps = [
       'データ検証中...',
       'スプレッドシートに保存中...',
@@ -1009,6 +1038,7 @@ function getProductInputFormHtml() {
         var formData = {
           productId: parseInt(document.getElementById('productId').value),
           productName: document.getElementById('productName').value,
+          joomId: document.getElementById('joomId').value || '',
           sku: document.getElementById('sku').value,
           asin: document.getElementById('asin').value,
           supplier: document.getElementById('supplier').value,
@@ -1109,9 +1139,17 @@ function getProductInputFormHtml() {
       }, 8000);
     }
     
-    // フォームバリデーション
+    // フォームバリデーション（失敗時は固定バナー表示＋最初のエラー箇所へスクロール）
     function validateForm() {
       var isValid = true;
+      var firstInvalidField = null;
+      
+      // バリデーションエラーバナーを非表示（再検証時に前回の表示をクリア）
+      if (validationBannerHideTimeout) {
+        clearTimeout(validationBannerHideTimeout);
+        validationBannerHideTimeout = null;
+      }
+      document.getElementById('validationErrorBanner').style.display = 'none';
       
       // エラーメッセージをクリア
       document.querySelectorAll('.error-message').forEach(function(error) {
@@ -1133,6 +1171,7 @@ function getProductInputFormHtml() {
         
         if (!field.value.trim()) {
           errorElement.style.display = 'block';
+          if (!firstInvalidField) firstInvalidField = field;
           isValid = false;
         }
       });
@@ -1143,17 +1182,31 @@ function getProductInputFormHtml() {
       
       if (urlField.value && !isValidUrl(urlField.value)) {
         urlError.style.display = 'block';
+        if (!firstInvalidField) firstInvalidField = urlField;
         isValid = false;
       }
       
       // 価格の妥当性チェック
       var purchasePrice = parseFloat(document.getElementById('purchasePrice').value);
-      var sellingPrice = document.getElementById('sellingPrice').value ? parseFloat(document.getElementById('sellingPrice').value) : null;
+      var sellingPriceField = document.getElementById('sellingPrice');
+      var sellingPrice = sellingPriceField.value ? parseFloat(sellingPriceField.value) : null;
       
       if (sellingPrice && sellingPrice <= purchasePrice) {
         document.getElementById('sellingPriceError').textContent = '販売価格は仕入れ価格より高く設定してください';
         document.getElementById('sellingPriceError').style.display = 'block';
+        if (!firstInvalidField) firstInvalidField = sellingPriceField;
         isValid = false;
+      }
+      
+      // バリデーション失敗時：画面上部に固定バナー表示＋最初のエラー箇所へスクロール＋5秒後に非表示
+      if (!isValid && firstInvalidField) {
+        document.getElementById('validationErrorBanner').style.display = 'block';
+        firstInvalidField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        firstInvalidField.focus();
+        validationBannerHideTimeout = setTimeout(function() {
+          document.getElementById('validationErrorBanner').style.display = 'none';
+          validationBannerHideTimeout = null;
+        }, 5000);
       }
       
       return isValid;
@@ -1211,6 +1264,7 @@ function testNotesFunctionality() {
     const testFormData = {
       productId: 999,
       productName: 'テスト商品（備考機能テスト）',
+      joomId: '',
       sku: 'TEST-001',
       asin: 'B0TEST001',
       supplier: 'Amazon',
