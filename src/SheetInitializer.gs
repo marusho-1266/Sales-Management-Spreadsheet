@@ -1761,10 +1761,10 @@ function setupCustomMenu() {
 
 /**
  * 商品削除メニューの表示
+ * 商品ID入力ダイアログで削除対象を指定する
  */
 function showProductDeleteMenu() {
-  const ui = SpreadsheetApp.getUi();
-  ui.alert('商品削除', '商品削除機能は今後実装予定です。', ui.ButtonSet.OK);
+  deleteSelectedProduct();
 }
 
 /**
