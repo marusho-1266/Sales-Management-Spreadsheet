@@ -644,8 +644,6 @@ function setupProfitSheetHeaders(sheet) {
     sheet.getRange('A7').setFontWeight('bold').setBackground('#E8F4FD');
     sheet.getRange('A8').setValue('利益額(¥):');
     sheet.getRange('A9').setValue('利益率(%):');
-    sheet.getRange('A10').setValue('還付込利益額(¥):');
-    sheet.getRange('A11').setValue('還付込利益率(%):');
     sheet.getRange('A12').setValue('販売価格(¥):');
     sheet.getRange('D12').setValue('出品数量:');
     sheet.getRange('A13').setValue('仕入価格(¥):');
@@ -658,7 +656,6 @@ function setupProfitSheetHeaders(sheet) {
     sheet.getRange('D16').setValue('送料(¥):');
     sheet.getRange('A17').setValue('Joom手数料率(%):');
     sheet.getRange('D17').setValue('Joom手数料(¥):');
-    sheet.getRange('A18').setValue('返金額(¥):');
   sheet.getRange('D18').setValue('サーチャージ(¥):');
   sheet.getRange('D19').setValue('繁忙期料金(¥):');
     sheet.getRange('A19').setValue('商品カテゴリー:');
@@ -703,14 +700,14 @@ function setupProfitSheetHeaders(sheet) {
 function setupProfitSheetFormatting(sheet) {
   try {
     // 1. 通貨フォーマット（円）
-    const jpyCurrencyCells = ['B8', 'B10', 'B12', 'B13', 'B14', 'E14', 'E16', 'E17', 'E18', 'E19', 'B18', 'B33', 'B34', 'B35'];
+    const jpyCurrencyCells = ['B8', 'B12', 'B13', 'B14', 'E14', 'E16', 'E17', 'E18', 'E19', 'B33', 'B34', 'B35'];
     jpyCurrencyCells.forEach(cell => {
       sheet.getRange(cell).setNumberFormat('¥#,##0');
     });
     sheet.getRange(PROFIT_CELLS.USD_CONVERTED_PRICE).setNumberFormat('$#,##0.00');
     
     // 2. パーセントフォーマット
-    const percentCells = ['B9', 'B11', 'B17', 'D13'];
+    const percentCells = ['B9', 'B17', 'D13'];
     percentCells.forEach(cell => {
       sheet.getRange(cell).setNumberFormat('0.0%');
     });
@@ -728,13 +725,13 @@ function setupProfitSheetFormatting(sheet) {
     });
     
     // 5. 計算結果セルの黄色ハイライト
-    const resultCells = ['B8', 'B9', 'B10', 'B11', 'E14', 'E16', 'E17', 'E18', 'E19', 'D22', 'B23', 'D23'];
+    const resultCells = ['B8', 'B9', 'E14', 'E16', 'E17', 'E18', 'E19', 'D22', 'B23', 'D23'];
     resultCells.forEach(cell => {
       sheet.getRange(cell).setBackground('#FFFF99'); // 薄い黄色
     });
     
     // 5. 入力セルの薄い青色
-    const inputCells = ['B2', 'B5', 'E5', 'B6', 'E6', 'B12', 'D12', 'B13', 'D13', 'B14', 'B15', 'E15', 'B16', 'B18', 'B19', 'B21', 'D21', 'B22', 'B32', 'B33'];
+    const inputCells = ['B2', 'B5', 'E5', 'B6', 'E6', 'B12', 'D12', 'B13', 'D13', 'B14', 'B15', 'E15', 'B16', 'B19', 'B21', 'D21', 'B22', 'B32', 'B33'];
     inputCells.forEach(cell => {
       sheet.getRange(cell).setBackground('#E6F3FF'); // 薄い青色
     });
@@ -904,9 +901,6 @@ function setupProfitSheetDataValidation(sheet) {
     sheet.getRange('D21').setDataValidation(weightValidation);
     sheet.getRange('B22').setDataValidation(weightValidation);
     
-    // 返金額（0以上）
-    sheet.getRange('B18').setDataValidation(priceValidation);
-    
     // 為替レート（0以上）
     const exchangeValidation = SpreadsheetApp.newDataValidation()
       .requireNumberGreaterThan(0)
@@ -980,7 +974,7 @@ function setupProfitSheetProtection(sheet) {
   try {
     // 1. 計算結果セルを保護（読み取り専用）
     const protectedCells = [
-      'B8', 'B9', 'B10', 'B11',  // 利益計算結果
+      'B8', 'B9',               // 利益計算結果
       'E14', 'E16', 'E17', 'E18', 'E19',       // 原価・送料・手数料・サーチャージ・繁忙期料金
       'D22', 'B23', 'D23',       // 容積重量・最終重量・重量差
       'B17', 'B27', 'B34', 'B35', 'B36' // 設定値・自動取得値（B27はB16から自動取得）
@@ -994,7 +988,7 @@ function setupProfitSheetProtection(sheet) {
     const editableCells = [
       'B2',                       // 商品ID
       'B5', 'E5', 'B6', 'E6',     // 商品情報
-      'B12', 'D12', 'B13', 'D13', 'B14', 'B15', 'E15', 'B16', 'B18', // 価格・数量・重量・配送
+      'B12', 'D12', 'B13', 'D13', 'B14', 'B15', 'E15', 'B16', // 価格・数量・重量・配送
       'B21', 'D21', 'B22',        // 寸法
       'B19',                      // カテゴリー
       'B32', 'B33'                // 為替レート設定
@@ -1303,13 +1297,6 @@ function syncProfitDataToInventory() {
         label: '配送価格',
         rangeA1: PROFIT_CELLS.SHIPPING_COST,
         columnIndex: COLUMN_INDEXES.INVENTORY.SHIPPING_PRICE,
-        allowBlank: true,
-        format: '#,##0'
-      },
-      {
-        label: '返金額(円)',
-        rangeA1: PROFIT_CELLS.REFUND_AMOUNT,
-        columnIndex: COLUMN_INDEXES.INVENTORY.REFUND_AMOUNT,
         allowBlank: true,
         format: '#,##0'
       },
@@ -1660,17 +1647,11 @@ function setupProfitSheetFormulas(sheet) {
     );
     
     // 利益計算の基本式
-    // B8: 利益額 = 販売価格 - 仕入原価 - 送料 - Joom手数料 + 返金額
-    sheet.getRange('B8').setFormula('=B12-E14-E16-E17-E18-E19+B18');
+    // B8: 利益額 = 販売価格 - 仕入原価 - 送料 - Joom手数料 - サーチャージ - 繁忙期料金
+    sheet.getRange('B8').setFormula('=B12-E14-E16-E17-E18-E19');
     
     // B9: 利益率 = 利益額 / 販売価格
     sheet.getRange('B9').setFormula('=IF(B12>0,B8/B12,0)');
-    
-    // B10: 還付込利益額 = 利益額 + 返金額
-    sheet.getRange('B10').setFormula('=B8+B18');
-    
-    // B11: 還付込利益率 = 還付込利益額 / 販売価格
-    sheet.getRange('B11').setFormula('=IF(B12>0,B10/B12,0)');
     
     // E14: 仕入原価 = 仕入価格 - 割引ポイント
     sheet.getRange('E14').setFormula('=B13-B14');

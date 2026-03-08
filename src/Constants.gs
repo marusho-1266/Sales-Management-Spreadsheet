@@ -39,16 +39,15 @@ const COLUMN_INDEXES = {
     SHIPPING_PRICE: 19,      // S列: 配送価格
     STOCK_QUANTITY: 20,      // T列: 在庫数量
     STOCK_STATUS: 21,        // U列: 在庫ステータス
-    REFUND_AMOUNT: 22,       // V列: 返金額(円)
-    JOOM_FEE: 23,            // W列: Joom手数料(円)
-    SURCHARGE: 24,           // X列: サーチャージ(円)
-    PEAK_SEASON_FEE: 25,     // Y列: 繁忙期料金(円)
-    PROFIT: 26,              // Z列: 利益
-    EXCHANGE_RATE: 27,       // AA列: 最終為替レート
-    LAST_UPDATED: 28,        // AB列: 最終更新日時
-    NOTES: 29,               // AC列: 備考・メモ
-    JOOM_STATUS: 30,         // AD列: Joom連携ステータス
-    JOOM_LAST_EXPORT: 31     // AE列: 最終出力日時
+    JOOM_FEE: 22,            // V列: Joom手数料(円)
+    SURCHARGE: 23,           // W列: サーチャージ(円)
+    PEAK_SEASON_FEE: 24,     // X列: 繁忙期料金(円)
+    PROFIT: 25,              // Y列: 利益
+    EXCHANGE_RATE: 26,       // Z列: 最終為替レート
+    LAST_UPDATED: 27,        // AA列: 最終更新日時
+    NOTES: 28,               // AB列: 備考・メモ
+    JOOM_STATUS: 29,         // AC列: Joom連携ステータス
+    JOOM_LAST_EXPORT: 30     // AD列: 最終出力日時
   },
   
   // 売上管理シート（Joom注文連携対応版）
@@ -163,7 +162,6 @@ const PROFIT_CELLS = {
   SHIPPING_METHOD: 'E15',
   REGION: 'B16',
   JOOM_FEE_RATE: 'B17',
-  REFUND_AMOUNT: 'B18',
   HEIGHT_CM: 'B21',
   LENGTH_CM: 'D21',
   WIDTH_CM: 'B22',
@@ -180,8 +178,6 @@ const PROFIT_CELLS = {
   WEIGHT_DIFFERENCE: 'D23',
   PROFIT_YEN: 'B8',
   PROFIT_RATE: 'B9',
-  PROFIT_YEN_REFUND: 'B10',
-  PROFIT_RATE_REFUND: 'B11',
 
   // 配送方法選択関連
   TARGET_REGION: 'B27',

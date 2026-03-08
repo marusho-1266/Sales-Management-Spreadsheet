@@ -63,7 +63,6 @@ function initializeInventorySheet() {
     // 既存フィールド
     '在庫ステータス',
     // 利益計算関連フィールド
-    '返金額(円)',
     'Joom手数料(円)',
     'サーチャージ(円)',
     '繁忙期料金(円)',
@@ -277,22 +276,21 @@ function addProfitRelatedColumnsToExistingSheet() {
     const headerRange = inventorySheet.getRange(1, 1, 1, inventorySheet.getLastColumn());
     const headers = headerRange.getValues()[0];
     
-    // 返金額列が既に存在するかチェック
-    if (headers.includes('返金額(円)')) {
+    // Joom手数料列が既に存在するかチェック
+    if (headers.includes('Joom手数料(円)')) {
       console.log('利益計算関連列は既に存在します');
       return;
     }
     
-    // 在庫ステータス列（19列目）の後に4つの列を追加（返金額、Joom手数料、サーチャージ、繁忙期料金）
-    const stockStatusColumnIndex = COLUMN_INDEXES.INVENTORY.STOCK_STATUS; // 19列目
-    inventorySheet.insertColumnsAfter(stockStatusColumnIndex, 4);
+    // 在庫ステータス列の後に3つの列を追加（Joom手数料、サーチャージ、繁忙期料金）
+    const stockStatusColumnIndex = COLUMN_INDEXES.INVENTORY.STOCK_STATUS;
+    inventorySheet.insertColumnsAfter(stockStatusColumnIndex, 3);
     
     // 利益列（24列目）の後に為替レート列を追加
     const profitColumnIndex = COLUMN_INDEXES.INVENTORY.PROFIT; // 24列目
     inventorySheet.insertColumnsAfter(profitColumnIndex, 1);
     
     // 新しいヘッダーを設定
-    inventorySheet.getRange(1, COLUMN_INDEXES.INVENTORY.REFUND_AMOUNT).setValue('返金額(円)');
     inventorySheet.getRange(1, COLUMN_INDEXES.INVENTORY.JOOM_FEE).setValue('Joom手数料(円)');
     inventorySheet.getRange(1, COLUMN_INDEXES.INVENTORY.SURCHARGE).setValue('サーチャージ(円)');
     inventorySheet.getRange(1, COLUMN_INDEXES.INVENTORY.PEAK_SEASON_FEE).setValue('繁忙期料金(円)');
@@ -300,7 +298,6 @@ function addProfitRelatedColumnsToExistingSheet() {
     
     // ヘッダーの書式設定
     const headerColumns = [
-      COLUMN_INDEXES.INVENTORY.REFUND_AMOUNT,
       COLUMN_INDEXES.INVENTORY.JOOM_FEE,
       COLUMN_INDEXES.INVENTORY.SURCHARGE,
       COLUMN_INDEXES.INVENTORY.PEAK_SEASON_FEE,
@@ -320,14 +317,13 @@ function addProfitRelatedColumnsToExistingSheet() {
     const lastRow = inventorySheet.getLastRow();
     if (lastRow > 1) {
       for (let row = 2; row <= lastRow; row++) {
-    // 利益計算式: 販売価格-(仕入価格+配送価格+返金額+Joom手数料+サーチャージ+繁忙料金)
-    // I列: 販売価格, H列: 仕入価格, S列: 配送価格, V列: 返金額, W列: Joom手数料, X列: サーチャージ, Y列: 繁忙料金
-    const formula = `=I${row}-(H${row}+S${row}+V${row}+W${row}+X${row}+Y${row})`;
+    // 利益計算式: 販売価格-(仕入価格+配送価格+Joom手数料+サーチャージ+繁忙料金)
+    // I列: 販売価格, H列: 仕入価格, S列: 配送価格, V列: Joom手数料, W列: サーチャージ, X列: 繁忙料金
+    const formula = `=I${row}-(H${row}+S${row}+V${row}+W${row}+X${row})`;
         inventorySheet.getRange(row, COLUMN_INDEXES.INVENTORY.PROFIT).setFormula(formula);
         inventorySheet.getRange(row, COLUMN_INDEXES.INVENTORY.PROFIT).setNumberFormat('#,##0');
         
         // 新規追加列の書式設定
-        inventorySheet.getRange(row, COLUMN_INDEXES.INVENTORY.REFUND_AMOUNT).setNumberFormat('#,##0');
         inventorySheet.getRange(row, COLUMN_INDEXES.INVENTORY.JOOM_FEE).setNumberFormat('#,##0');
         inventorySheet.getRange(row, COLUMN_INDEXES.INVENTORY.SURCHARGE).setNumberFormat('#,##0');
         inventorySheet.getRange(row, COLUMN_INDEXES.INVENTORY.PEAK_SEASON_FEE).setNumberFormat('#,##0');
@@ -451,7 +447,6 @@ function addSampleData(sheet) {
   sheet.getRange(2, COLUMN_INDEXES.INVENTORY.WIDTH_CM, sampleData.length, 1).setNumberFormat('0.0'); // 幅(cm)
   sheet.getRange(2, COLUMN_INDEXES.INVENTORY.SHIPPING_PRICE, sampleData.length, 1).setNumberFormat('#,##0'); // 配送価格
   sheet.getRange(2, COLUMN_INDEXES.INVENTORY.STOCK_QUANTITY, sampleData.length, 1).setNumberFormat('0'); // 在庫数量
-  sheet.getRange(2, COLUMN_INDEXES.INVENTORY.REFUND_AMOUNT, sampleData.length, 1).setNumberFormat('#,##0'); // 返金額(円)
   sheet.getRange(2, COLUMN_INDEXES.INVENTORY.JOOM_FEE, sampleData.length, 1).setNumberFormat('#,##0'); // Joom手数料(円)
   sheet.getRange(2, COLUMN_INDEXES.INVENTORY.SURCHARGE, sampleData.length, 1).setNumberFormat('#,##0'); // サーチャージ(円)
   sheet.getRange(2, COLUMN_INDEXES.INVENTORY.PEAK_SEASON_FEE, sampleData.length, 1).setNumberFormat('#,##0'); // 繁忙期料金(円)
@@ -491,10 +486,10 @@ function setupConditionalFormatting(sheet) {
 function setupProfitCalculation(sheet) {
   const lastRow = sheet.getLastRow();
   
-  // 利益計算式: 販売価格-(仕入価格+配送価格+返金額+Joom手数料+サーチャージ+繁忙料金)
-  // I列: 販売価格, H列: 仕入価格, S列: 配送価格, V列: 返金額, W列: Joom手数料, X列: サーチャージ, Y列: 繁忙料金
+  // 利益計算式: 販売価格-(仕入価格+配送価格+Joom手数料+サーチャージ+繁忙料金)
+  // I列: 販売価格, H列: 仕入価格, S列: 配送価格, V列: Joom手数料, W列: サーチャージ, X列: 繁忙料金
   for (let row = 2; row <= lastRow; row++) {
-    const formula = `=I${row}-(H${row}+S${row}+V${row}+W${row}+X${row}+Y${row})`;
+    const formula = `=I${row}-(H${row}+S${row}+V${row}+W${row}+X${row})`;
     sheet.getRange(row, COLUMN_INDEXES.INVENTORY.PROFIT).setFormula(formula);
   }
 }

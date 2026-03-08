@@ -302,10 +302,7 @@ function saveSalesData(salesData) {
     const orderDate = salesData.orderDate || Utilities.formatDate(now, 'JST', 'yyyy-MM-dd');
     const registrationTime = Utilities.formatDate(now, 'JST', 'yyyy-MM-dd HH:mm:ss');
     
-    // 純利益を計算（手数料は考慮しない）
-    const netProfit = salesData.sellingPrice - salesData.purchasePrice;
-    
-    // 売上データを追加
+    // 売上データを追加（K列は後で計算式を設定するため0を仮置き）
     const newRow = [
       salesData.orderId,
       orderDate,
@@ -317,13 +314,24 @@ function saveSalesData(salesData) {
       salesData.sellingPrice,
       salesData.purchasePrice,
       salesData.shippingCost,
-      netProfit,
+      0,
       registrationTime
     ];
     
     // データを追加
     const lastRow = salesSheet.getLastRow();
-    salesSheet.getRange(lastRow + 1, 1, 1, newRow.length).setValues([newRow]);
+    const newRowIndex = lastRow + 1;
+    salesSheet.getRange(newRowIndex, 1, 1, newRow.length).setValues([newRow]);
+    
+    // K列に純利益の計算式を設定: =H-(I+J+P+Q+R)
+    const profitFormula = '=H' + newRowIndex + '-(I' + newRowIndex + '+J' + newRowIndex + '+P' + newRowIndex + '+Q' + newRowIndex + '+R' + newRowIndex + ')';
+    salesSheet.getRange(newRowIndex, COLUMN_INDEXES.SALES.NET_PROFIT).setFormula(profitFormula);
+    
+    // R列に返金額を書き込み
+    const refundAmount = salesData.refundAmount || 0;
+    if (refundAmount > 0) {
+      salesSheet.getRange(newRowIndex, COLUMN_INDEXES.SALES.REFUND_AMOUNT).setValue(refundAmount);
+    }
     
     // 在庫管理シートの在庫数量を減算
     const inventoryMessage = deductInventoryStock(spreadsheet, salesData.productId, salesData.quantity);
@@ -906,6 +914,13 @@ function getSalesInputFormHtml() {
            </div>
          </div>
          
+         <div class="form-row">
+           <div class="form-group">
+             <label for="refundAmount">返金額 (円)</label>
+             <input type="number" id="refundAmount" name="refundAmount" min="0" value="0" onchange="calculateProfit()">
+           </div>
+         </div>
+         
          <!-- 利益計算プレビュー -->
          <div class="price-preview" id="pricePreview" style="display: none;">
            <h4>💰 利益計算プレビュー</h4>
@@ -920,6 +935,10 @@ function getSalesInputFormHtml() {
            <div class="price-item">
              <span>送料:</span>
              <span id="previewShippingCost">¥0</span>
+           </div>
+           <div class="price-item">
+             <span>返金額:</span>
+             <span id="previewRefundAmount">¥0</span>
            </div>
            <div class="price-item total">
              <span><strong>純利益:</strong></span>
@@ -1059,22 +1078,24 @@ function getSalesInputFormHtml() {
        const sellingPrice = parseFloat(document.getElementById('sellingPrice').value) || 0;
        const purchasePrice = parseFloat(document.getElementById('purchasePrice').value) || 0;
        const shippingCost = parseFloat(document.getElementById('shippingCost').value) || 0;
-       const netProfit = sellingPrice - purchasePrice - shippingCost;
+       const refundAmount = parseFloat(document.getElementById('refundAmount').value) || 0;
+       const netProfit = sellingPrice - purchasePrice - shippingCost - refundAmount;
        
        document.getElementById('netProfit').value = Math.round(netProfit);
        
        // プレビュー表示を更新
-       updatePricePreview(sellingPrice, purchasePrice, shippingCost, netProfit);
+       updatePricePreview(sellingPrice, purchasePrice, shippingCost, refundAmount, netProfit);
      }
      
      // 価格プレビューの更新
-     function updatePricePreview(sellingPrice, purchasePrice, shippingCost, netProfit) {
+     function updatePricePreview(sellingPrice, purchasePrice, shippingCost, refundAmount, netProfit) {
        const pricePreview = document.getElementById('pricePreview');
        
        if (sellingPrice > 0) {
          document.getElementById('previewSellingPrice').textContent = '¥' + sellingPrice.toLocaleString();
          document.getElementById('previewPurchasePrice').textContent = '¥' + purchasePrice.toLocaleString();
          document.getElementById('previewShippingCost').textContent = '¥' + shippingCost.toLocaleString();
+         document.getElementById('previewRefundAmount').textContent = '¥' + refundAmount.toLocaleString();
          document.getElementById('previewNetProfit').textContent = '¥' + Math.round(netProfit).toLocaleString();
          
          // 利益の色分け
@@ -1136,10 +1157,11 @@ function getSalesInputFormHtml() {
          asin: window.selectedProductData.asin,
          productName: window.selectedProductData.name,
          quantity: parseInt(document.getElementById('quantity').value),
-         sellingPrice: parseInt(document.getElementById('sellingPrice').value),
-         purchasePrice: parseInt(document.getElementById('purchasePrice').value),
-         shippingCost: parseInt(document.getElementById('shippingCost').value) || 0
-       };
+        sellingPrice: parseInt(document.getElementById('sellingPrice').value),
+        purchasePrice: parseInt(document.getElementById('purchasePrice').value),
+        shippingCost: parseInt(document.getElementById('shippingCost').value) || 0,
+        refundAmount: parseInt(document.getElementById('refundAmount').value) || 0
+      };
        
        // プログレス更新（保存開始）
        setTimeout(function() {
