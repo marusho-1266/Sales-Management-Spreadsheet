@@ -325,10 +325,14 @@ function saveSalesData(salesData) {
     const lastRow = salesSheet.getLastRow();
     salesSheet.getRange(lastRow + 1, 1, 1, newRow.length).setValues([newRow]);
     
+    // 在庫管理シートの在庫数量を減算
+    const inventoryMessage = deductInventoryStock(spreadsheet, salesData.productId, salesData.quantity);
+    
      console.log('売上データが正常に追加されました:', salesData.orderId);
+     const resultMessage = '注文データが正常に保存されました' + (inventoryMessage ? '\n' + inventoryMessage : '');
      return { 
        success: true, 
-       message: '注文データが正常に保存されました',
+       message: resultMessage,
        orderId: salesData.orderId,
        productName: salesData.productName
      };
@@ -336,6 +340,45 @@ function saveSalesData(salesData) {
   } catch (error) {
     console.error('売上データの追加中にエラーが発生しました:', error);
     return { success: false, message: 'データの保存中にエラーが発生しました: ' + error.message };
+  }
+}
+
+/**
+ * 在庫管理シートの在庫数量を減算する
+ * @param {GoogleAppsScript.Spreadsheet.Spreadsheet} spreadsheet
+ * @param {number|string} productId - 商品ID
+ * @param {number} quantity - 減算する数量
+ * @returns {string} 結果メッセージ（空文字は変更なし）
+ */
+function deductInventoryStock(spreadsheet, productId, quantity) {
+  try {
+    const inventorySheet = spreadsheet.getSheetByName(SHEET_NAMES.INVENTORY);
+    if (!inventorySheet) {
+      console.log('在庫管理シートが見つからないため在庫減算をスキップしました');
+      return '';
+    }
+
+    const data = inventorySheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim() === String(productId).trim()) {
+        const row = i + 1;
+        const currentStock = parseInt(data[i][COLUMN_INDEXES.INVENTORY.STOCK_QUANTITY - 1]) || 0;
+        const newStock = Math.max(0, currentStock - quantity);
+        inventorySheet.getRange(row, COLUMN_INDEXES.INVENTORY.STOCK_QUANTITY).setValue(newStock);
+
+        if (newStock === 0) {
+          inventorySheet.getRange(row, COLUMN_INDEXES.INVENTORY.STOCK_STATUS).setValue(STOCK_STATUS.OUT_OF_STOCK);
+        }
+
+        console.log('在庫減算: 商品ID=' + productId + ' ' + currentStock + ' → ' + newStock);
+        return '在庫数量: ' + currentStock + ' → ' + newStock;
+      }
+    }
+    console.log('在庫減算: 商品ID ' + productId + ' が在庫管理シートに見つかりません');
+    return '';
+  } catch (error) {
+    console.error('在庫減算中にエラーが発生しました:', error);
+    return '';
   }
 }
 
