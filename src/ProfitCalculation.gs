@@ -582,26 +582,15 @@ function calculateProfitModule() {
   var joomFee = Math.round(selling * joomFeeRate / 100);
   var shippingSurcharge = Number(sheet.getRange(PROFIT_CELLS.SHIPPING_SURCHARGE).getValue()) || 0;
   var peakSeasonFee = Number(sheet.getRange(PROFIT_CELLS.PEAK_SEASON_FEE).getValue()) || 0;
-  var refund = Number(sheet.getRange(PROFIT_CELLS.REFUND_AMOUNT).getValue()) || 0;
 
   var miscCost = Math.round(selling * (miscPercent / 100)) + Math.round(miscFixed);
-  var profit = Math.round(selling - cost - shipping - shippingSurcharge - peakSeasonFee - joomFee - miscCost + refund);
+  var profit = Math.round(selling - cost - shipping - shippingSurcharge - peakSeasonFee - joomFee - miscCost);
   var profitRate = selling > 0 ? Math.round((profit / selling) * 10000) / 100 : 0;
-  var profitWithRefund = Math.round(profit + refund);
-  var profitRateWithRefund = selling > 0 ? Math.round((profitWithRefund / selling) * 10000) / 100 : 0;
 
-  // 注意: 以下のセルは参照式（数式）で自動計算されるため、
-  // トリガーからの更新は行わない（数式による自動計算を優先）
+  // セルは参照式（数式）で自動計算されるため、トリガーからの更新は行わない
   // - E17 (Joom手数料): =ROUND(B12*IFERROR(B17,0.127),0)
-  // - B8 (利益額): =B12-E14-E16-E17+B18
+  // - B8 (利益額): =B12-E14-E16-E17-E18-E19
   // - B9 (利益率): =IF(B12>0,B8/B12,0)
-  // - B10 (還付込利益額): =B8+B18
-  // - B11 (還付込利益率): =IF(B12>0,B10/B12,0)
-  // updateCellSilently(sheet.getRange(PROFIT_CELLS.JOOM_FEE_YEN), joomFee);
-  // updateCellSilently(sheet.getRange(PROFIT_CELLS.PROFIT_YEN), profit);
-  // updateCellSilently(sheet.getRange(PROFIT_CELLS.PROFIT_RATE), profitRate);
-  // updateCellSilently(sheet.getRange(PROFIT_CELLS.PROFIT_YEN_REFUND), profitWithRefund);
-  // updateCellSilently(sheet.getRange(PROFIT_CELLS.PROFIT_RATE_REFUND), profitRateWithRefund);
 }
 
 /**

@@ -57,7 +57,7 @@ function saveNewProduct(formData) {
     }
     
     // 利益計算関連列が存在するかチェックし、存在しない場合は追加
-    if (!headers.includes('返金額(円)') || !headers.includes('最終為替レート')) {
+    if (!headers.includes('Joom手数料(円)') || !headers.includes('最終為替レート')) {
       console.log('利益計算関連列が存在しないため、追加します');
       addProfitRelatedColumnsToExistingSheet();
     }
@@ -100,7 +100,6 @@ function saveNewProduct(formData) {
       // 既存フィールド
       formData.stockStatus,         // 在庫ステータス
       // 利益計算関連フィールド（初期値0）
-      0,                            // 返金額(円)
       0,                            // Joom手数料(円)
       0,                            // サーチャージ(円)
       0,                            // 繁忙期料金(円)
@@ -127,15 +126,14 @@ function saveNewProduct(formData) {
     inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.WEIGHT, 1, 1).setNumberFormat('0');        // 重量
     inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.SHIPPING_PRICE, 1, 1).setNumberFormat('#,##0');   // 配送価格
     inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.STOCK_QUANTITY, 1, 1).setNumberFormat('0');       // 在庫数量
-    inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.REFUND_AMOUNT, 1, 1).setNumberFormat('#,##0');   // 返金額(円)
     inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.JOOM_FEE, 1, 1).setNumberFormat('#,##0');   // Joom手数料(円)
     inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.SURCHARGE, 1, 1).setNumberFormat('#,##0');   // サーチャージ(円)
     inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.PEAK_SEASON_FEE, 1, 1).setNumberFormat('#,##0');   // 繁忙期料金(円)
     inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.EXCHANGE_RATE, 1, 1).setNumberFormat('#,##0.00');   // 最終為替レート
     
-    // 利益計算式: 販売価格-(仕入価格+配送価格+返金額+Joom手数料+サーチャージ+繁忙料金)
-    // I列: 販売価格, H列: 仕入価格, S列: 配送価格, V列: 返金額, W列: Joom手数料, X列: サーチャージ, Y列: 繁忙料金
-    const profitFormula = `=I${lastRow}-(H${lastRow}+S${lastRow}+V${lastRow}+W${lastRow}+X${lastRow}+Y${lastRow})`;
+    // 利益計算式: 販売価格-(仕入価格+配送価格+Joom手数料+サーチャージ+繁忙料金)
+    // I列: 販売価格, H列: 仕入価格, S列: 配送価格, V列: Joom手数料, W列: サーチャージ, X列: 繁忙料金
+    const profitFormula = `=I${lastRow}-(H${lastRow}+S${lastRow}+V${lastRow}+W${lastRow}+X${lastRow})`;
     inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.PROFIT, 1, 1).setFormula(profitFormula);
     inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.PROFIT, 1, 1).setNumberFormat('#,##0');   // 利益
     
