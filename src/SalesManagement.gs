@@ -327,8 +327,16 @@ function saveSalesData(salesData) {
     const profitFormula = '=H' + newRowIndex + '-(I' + newRowIndex + '+J' + newRowIndex + '+P' + newRowIndex + '+Q' + newRowIndex + '+R' + newRowIndex + ')';
     salesSheet.getRange(newRowIndex, COLUMN_INDEXES.SALES.NET_PROFIT).setFormula(profitFormula);
     
-    // R列に返金額を書き込み
+    // P列(手数料)・Q列(VAT)・R列(返金額)を書き込み
+    const commission = salesData.commission || 0;
+    const vat = salesData.vat || 0;
     const refundAmount = salesData.refundAmount || 0;
+    if (commission > 0) {
+      salesSheet.getRange(newRowIndex, COLUMN_INDEXES.SALES.COMMISSION).setValue(commission);
+    }
+    if (vat > 0) {
+      salesSheet.getRange(newRowIndex, COLUMN_INDEXES.SALES.VAT).setValue(vat);
+    }
     if (refundAmount > 0) {
       salesSheet.getRange(newRowIndex, COLUMN_INDEXES.SALES.REFUND_AMOUNT).setValue(refundAmount);
     }
@@ -916,6 +924,18 @@ function getSalesInputFormHtml() {
          
          <div class="form-row">
            <div class="form-group">
+             <label for="commission">手数料 (円)</label>
+             <input type="number" id="commission" name="commission" min="0" value="0" onchange="calculateProfit()">
+           </div>
+           
+           <div class="form-group">
+             <label for="vat">付加価値税 (円)</label>
+             <input type="number" id="vat" name="vat" min="0" value="0" onchange="calculateProfit()">
+           </div>
+         </div>
+         
+         <div class="form-row">
+           <div class="form-group">
              <label for="refundAmount">返金額 (円)</label>
              <input type="number" id="refundAmount" name="refundAmount" min="0" value="0" onchange="calculateProfit()">
            </div>
@@ -935,6 +955,14 @@ function getSalesInputFormHtml() {
            <div class="price-item">
              <span>送料:</span>
              <span id="previewShippingCost">¥0</span>
+           </div>
+           <div class="price-item">
+             <span>手数料:</span>
+             <span id="previewCommission">¥0</span>
+           </div>
+           <div class="price-item">
+             <span>付加価値税:</span>
+             <span id="previewVat">¥0</span>
            </div>
            <div class="price-item">
              <span>返金額:</span>
@@ -1073,28 +1101,30 @@ function getSalesInputFormHtml() {
       }
     }
     
-     // 利益計算
+     // 利益計算: K列の計算式 =H-(I+J+P+Q+R) と一致させる
      function calculateProfit() {
        const sellingPrice = parseFloat(document.getElementById('sellingPrice').value) || 0;
        const purchasePrice = parseFloat(document.getElementById('purchasePrice').value) || 0;
        const shippingCost = parseFloat(document.getElementById('shippingCost').value) || 0;
+       const commission = parseFloat(document.getElementById('commission').value) || 0;
+       const vat = parseFloat(document.getElementById('vat').value) || 0;
        const refundAmount = parseFloat(document.getElementById('refundAmount').value) || 0;
-       const netProfit = sellingPrice - purchasePrice - shippingCost - refundAmount;
+       const netProfit = sellingPrice - (purchasePrice + shippingCost + commission + vat + refundAmount);
        
        document.getElementById('netProfit').value = Math.round(netProfit);
        
-       // プレビュー表示を更新
-       updatePricePreview(sellingPrice, purchasePrice, shippingCost, refundAmount, netProfit);
+       updatePricePreview(sellingPrice, purchasePrice, shippingCost, commission, vat, refundAmount, netProfit);
      }
      
-     // 価格プレビューの更新
-     function updatePricePreview(sellingPrice, purchasePrice, shippingCost, refundAmount, netProfit) {
+     function updatePricePreview(sellingPrice, purchasePrice, shippingCost, commission, vat, refundAmount, netProfit) {
        const pricePreview = document.getElementById('pricePreview');
        
        if (sellingPrice > 0) {
          document.getElementById('previewSellingPrice').textContent = '¥' + sellingPrice.toLocaleString();
          document.getElementById('previewPurchasePrice').textContent = '¥' + purchasePrice.toLocaleString();
          document.getElementById('previewShippingCost').textContent = '¥' + shippingCost.toLocaleString();
+         document.getElementById('previewCommission').textContent = '¥' + commission.toLocaleString();
+         document.getElementById('previewVat').textContent = '¥' + vat.toLocaleString();
          document.getElementById('previewRefundAmount').textContent = '¥' + refundAmount.toLocaleString();
          document.getElementById('previewNetProfit').textContent = '¥' + Math.round(netProfit).toLocaleString();
          
@@ -1160,6 +1190,8 @@ function getSalesInputFormHtml() {
         sellingPrice: parseInt(document.getElementById('sellingPrice').value),
         purchasePrice: parseInt(document.getElementById('purchasePrice').value),
         shippingCost: parseInt(document.getElementById('shippingCost').value) || 0,
+        commission: parseInt(document.getElementById('commission').value) || 0,
+        vat: parseInt(document.getElementById('vat').value) || 0,
         refundAmount: parseInt(document.getElementById('refundAmount').value) || 0
       };
        
