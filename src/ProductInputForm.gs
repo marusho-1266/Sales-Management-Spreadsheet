@@ -138,9 +138,17 @@ function saveNewProduct(formData) {
     inventorySheet.getRange(lastRow, COLUMN_INDEXES.INVENTORY.PROFIT, 1, 1).setNumberFormat('#,##0');   // 利益
     
     // 価格履歴を自動で作成
+    // 販売価格が空の場合は0を渡す（formData.sellingPriceがnullだとupdatePriceHistoryの検証で失敗する）
+    const purchasePriceForHistory = Number(formData.purchasePrice);
+    const sellingPriceForHistory = (formData.sellingPrice != null && formData.sellingPrice !== '')
+      ? Number(formData.sellingPrice) : 0;
     try {
-      updatePriceHistory(formData.productId, formData.purchasePrice, formData.sellingPrice, '新商品登録');
-      console.log('価格履歴が正常に作成されました:', formData.productName);
+      const historyUpdated = updatePriceHistory(formData.productId, purchasePriceForHistory, sellingPriceForHistory, '新商品登録');
+      if (historyUpdated) {
+        console.log('価格履歴が正常に作成されました:', formData.productName);
+      } else {
+        console.warn('価格履歴の更新がスキップされました（検証失敗の可能性）:', formData.productName);
+      }
     } catch (priceHistoryError) {
       console.warn('価格履歴の作成中にエラーが発生しました:', priceHistoryError);
       // 価格履歴の作成に失敗しても商品追加は継続
