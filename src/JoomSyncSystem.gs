@@ -586,9 +586,9 @@ function recordSyncHistory(syncInfo) {
     const fields = ['同期日時', '同期タイプ', '取得件数', '登録件数', '失敗件数', '処理時間(秒)', 'ステータス', 'メッセージ'];
     const rows = fields.map((key, i) => [key, values[i]]);
     
-    settingsSheet.getRange(startRow, 1, startRow + fields.length - 1, 2).setValues(rows);
-    settingsSheet.getRange(startRow, 1, startRow + fields.length - 1, 1).setFontWeight('bold');
-    settingsSheet.getRange(startRow, 2).setNumberFormat('yyyy-mm-dd HH:mm:ss'); // 同期日時のみ日時書式
+    settingsSheet.getRange(startRow, 1, fields.length, 2).setValues(rows);
+    settingsSheet.getRange(startRow, 1, fields.length, 1).setFontWeight('bold');
+    settingsSheet.getRange(startRow, 2, fields.length, 1).setNumberFormat('yyyy-mm-dd HH:mm:ss'); // 同期日時のみ日時書式
     
     console.log('同期履歴を記録しました:', syncInfo);
     
