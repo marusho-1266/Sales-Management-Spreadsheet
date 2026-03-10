@@ -508,7 +508,49 @@ function getWeightShippingCost(shippingMethod, finalWeight, region) {
 }
 
 /**
+ * 日付値を日付のみ（時刻0時）に正規化
+ * @param {Date|number|string} value - 日付または空
+ * @return {Date|null} 正規化された日付、無効ならnull
+ */
+function _normalizeToDateOnly(value) {
+  if (value === null || value === undefined || value === '') return null;
+  let d = null;
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    d = new Date(value.getTime());
+  } else if (typeof value === 'number' && !isNaN(value)) {
+    d = new Date(value);
+    if (isNaN(d.getTime())) return null;
+  }
+  if (d) {
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+  return null;
+}
+
+/**
+ * 対象日が開始日・終了日の期間内か判定
+ * 開始日・終了日がともに空の場合は常に適用（後方互換）
+ * @param {Date} today - 判定対象日
+ * @param {Date|null} startDate - 開始日（空なら制限なし）
+ * @param {Date|null} endDate - 終了日（空なら制限なし）
+ * @return {boolean}
+ */
+function _isWithinPeakSeasonRange(today, startDate, endDate) {
+  const startNorm = _normalizeToDateOnly(startDate);
+  const endNorm = _normalizeToDateOnly(endDate);
+  if (!startNorm && !endNorm) return true;
+  const todayNorm = _normalizeToDateOnly(today) || new Date();
+  todayNorm.setHours(0, 0, 0, 0);
+  const t = todayNorm.getTime();
+  if (startNorm && t < startNorm.getTime()) return false;
+  if (endNorm && t > endNorm.getTime()) return false;
+  return true;
+}
+
+/**
  * 配送方法×地域の繁忙期料金を取得
+ * 開始日・終了日が設定されている場合は、当日が期間内の場合のみ料金を返す
  * シート関数としても使用可能
  * @param {string} shippingMethod
  * @param {string} region
@@ -530,13 +572,26 @@ function getPeakSeasonFee(shippingMethod, region) {
     const methods = methodsRange.getValues().flat();
     const regions = regionsRange.getValues().flat();
     const amounts = amountsRange.getValues().flat();
+    let startDates = [];
+    let endDates = [];
+    const startRange = ss.getRangeByName(NAMED_RANGES.PEAK_SEASON_START_DATE);
+    const endRange = ss.getRangeByName(NAMED_RANGES.PEAK_SEASON_END_DATE);
+    if (startRange) startDates = startRange.getValues().flat();
+    if (endRange) endDates = endRange.getValues().flat();
+
     const normalizedMethod = String(shippingMethod).trim().toLowerCase();
     const normalizedRegion = String(region).trim().toLowerCase();
+    const today = new Date();
 
     for (let i = 0; i < methods.length; i++) {
       const methodCandidate = String(methods[i] || '').trim().toLowerCase();
       const regionCandidate = String(regions[i] || '').trim().toLowerCase();
       if (methodCandidate === normalizedMethod && regionCandidate === normalizedRegion) {
+        const startVal = startDates[i];
+        const endVal = endDates[i];
+        if (!_isWithinPeakSeasonRange(today, startVal, endVal)) {
+          continue;
+        }
         const amount = Number(amounts[i]);
         return isNaN(amount) ? 0 : amount;
       }

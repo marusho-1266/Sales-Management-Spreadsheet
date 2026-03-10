@@ -389,11 +389,12 @@ function setupDailyTrigger() {
     // 既存のトリガーを削除
     deleteDailyTrigger();
     
-    // 新しいトリガーを作成
+    // 新しいトリガーを作成（JST 午前2時）
     ScriptApp.newTrigger('dailyComprehensiveCheck')
       .timeBased()
       .atHour(2)
       .everyDays(1)
+      .inTimezone('Asia/Tokyo')
       .create();
     
     console.log('日次総チェックトリガー（毎日午前2時）を設定しました');
@@ -549,6 +550,7 @@ function checkTriggerStatus() {
 
 /**
  * 同期履歴を設定シートに記録
+ * A列=ヘッダー、B列=値で直近1件を表示（設定シートと同じ形式）
  * @param {Object} syncInfo - 同期情報
  */
 function recordSyncHistory(syncInfo) {
@@ -561,36 +563,32 @@ function recordSyncHistory(syncInfo) {
       return;
     }
     
-    // 既存のヘッダー行を検索
-    const headers = ['同期日時', '同期タイプ', '取得件数', '登録件数', '失敗件数', '処理時間(秒)', 'ステータス', 'メッセージ'];
-    let headerRow = findSyncHistoryHeaderRow(settingsSheet);
-    
-    if (headerRow === -1) {
-      // ヘッダーが存在しない場合は作成
-      const lastRow = settingsSheet.getLastRow();
-      headerRow = lastRow + 1;
-      settingsSheet.getRange(headerRow, 1, 1, headers.length).setValues([headers]);
-      settingsSheet.getRange(headerRow, 1, 1, headers.length).setFontWeight('bold');
-      console.log('同期履歴ヘッダーを作成しました:', headerRow);
-    }
-    
-    // 履歴データを追加（ヘッダーの直後）
-    const historyRow = [
+    const values = [
       new Date(),
       syncInfo.syncType || '',
-      syncInfo.fetched || 0,
-      syncInfo.inserted || 0,
-      syncInfo.failed || 0,
-      syncInfo.duration || 0,
+      syncInfo.fetched != null ? syncInfo.fetched : 0,
+      syncInfo.inserted != null ? syncInfo.inserted : 0,
+      syncInfo.failed != null ? syncInfo.failed : 0,
+      syncInfo.duration != null ? syncInfo.duration : 0,
       syncInfo.status || '',
       syncInfo.message || ''
     ];
     
-    const dataRow = headerRow + 1;
-    settingsSheet.getRange(dataRow, 1, 1, historyRow.length).setValues([historyRow]);
+    let startRow = findSyncHistoryStartRow(settingsSheet);
     
-    // 日時列のフォーマット
-    settingsSheet.getRange(dataRow, 1).setNumberFormat('yyyy-mm-dd HH:mm:ss');
+    if (startRow === -1) {
+      // 存在しない場合は作成（最終行の直後に8行追加）
+      const lastRow = settingsSheet.getLastRow();
+      startRow = lastRow + 1;
+      console.log('同期履歴ブロックを作成しました:', startRow);
+    }
+    
+    const fields = ['同期日時', '同期タイプ', '取得件数', '登録件数', '失敗件数', '処理時間(秒)', 'ステータス', 'メッセージ'];
+    const rows = fields.map((key, i) => [key, values[i]]);
+    
+    settingsSheet.getRange(startRow, 1, startRow + fields.length - 1, 2).setValues(rows);
+    settingsSheet.getRange(startRow, 1, startRow + fields.length - 1, 1).setFontWeight('bold');
+    settingsSheet.getRange(startRow, 2).setNumberFormat('yyyy-mm-dd HH:mm:ss'); // 同期日時のみ日時書式
     
     console.log('同期履歴を記録しました:', syncInfo);
     
@@ -600,24 +598,24 @@ function recordSyncHistory(syncInfo) {
 }
 
 /**
- * 同期履歴ヘッダー行を検索
+ * 同期履歴ブロックの開始行を検索
+ * 列Aで「同期日時」を検索（設定シートと同じA=ヘッダー、B=値の形式）
  * @param {Sheet} sheet - 検索対象のシート
- * @returns {number} ヘッダー行番号（見つからない場合は-1）
+ * @returns {number} 開始行番号（見つからない場合は-1）
  */
-function findSyncHistoryHeaderRow(sheet) {
+function findSyncHistoryStartRow(sheet) {
   try {
     const data = sheet.getDataRange().getValues();
     
-    // 列Aで「同期日時」を検索
     for (let i = 0; i < data.length; i++) {
       if (data[i][0] === '同期日時') {
-        return i + 1; // 1ベースの行番号に変換
+        return i + 1;
       }
     }
     
-    return -1; // 見つからない場合
+    return -1;
   } catch (error) {
-    console.error('ヘッダー行検索エラー:', error);
+    console.error('同期履歴開始行検索エラー:', error);
     return -1;
   }
 }
@@ -640,9 +638,9 @@ function sendSyncNotification(syncResult) {
       return;
     }
     
-    const emailAddress = getSetting('通知先メールアドレス');
+    const emailAddress = getSetting('Joom エラー通知メール');
     if (!emailAddress) {
-      console.log('通知先メールアドレスが設定されていません');
+      console.log('Joom エラー通知メールが設定されていません');
       return;
     }
     
@@ -685,9 +683,9 @@ function sendErrorNotification(errorInfo) {
       return;
     }
     
-    const emailAddress = getSetting('通知先メールアドレス');
+    const emailAddress = getSetting('Joom エラー通知メール');
     if (!emailAddress) {
-      console.log('通知先メールアドレスが設定されていません');
+      console.log('Joom エラー通知メールが設定されていません');
       return;
     }
     
@@ -719,9 +717,9 @@ function sendDailyReport(reportData) {
       return;
     }
     
-    const emailAddress = getSetting('通知先メールアドレス');
+    const emailAddress = getSetting('Joom エラー通知メール');
     if (!emailAddress) {
-      console.log('通知先メールアドレスが設定されていません');
+      console.log('Joom エラー通知メールが設定されていません');
       return;
     }
     
@@ -763,6 +761,7 @@ function sendDailyReport(reportData) {
 
 /**
  * 自動同期設定メニューを表示
+ * 定期処理と日次総チェックを個別に設定可能
  */
 function showSyncTriggerSettings() {
   const ui = SpreadsheetApp.getUi();
@@ -770,67 +769,85 @@ function showSyncTriggerSettings() {
   try {
     const triggerStatus = checkTriggerStatus();
     
-    let message = '【現在の自動同期設定】\n\n';
+    let statusMessage = '【現在の自動同期設定】\n\n';
     
     // エラーチェック
     if (triggerStatus.error) {
-      message += '⚠️ トリガー状態の取得中にエラーが発生しました\n';
-      message += `エラー: ${triggerStatus.error}\n\n`;
+      statusMessage += '⚠️ トリガー状態の取得中にエラーが発生しました\n';
+      statusMessage += `エラー: ${triggerStatus.error}\n\n`;
     }
     
-    // hourlyTriggerの安全なチェック
+    const hourlyEnabled = triggerStatus.hourlyTrigger ? triggerStatus.hourlyTrigger.enabled : false;
+    const dailyEnabled = triggerStatus.dailyTrigger ? triggerStatus.dailyTrigger.enabled : false;
+    
     if (triggerStatus.hourlyTrigger) {
-      message += `定期処理（1時間間隔）: ${triggerStatus.hourlyTrigger.enabled ? '✅ 有効' : '❌ 無効'}\n`;
-      message += `  ${triggerStatus.hourlyTrigger.info}\n\n`;
+      statusMessage += `定期処理（1時間間隔）: ${hourlyEnabled ? '✅ 有効' : '❌ 無効'}\n`;
+      statusMessage += `  ${triggerStatus.hourlyTrigger.info}\n\n`;
     } else {
-      message += `定期処理（1時間間隔）: ❌ 状態不明\n\n`;
+      statusMessage += `定期処理（1時間間隔）: ❌ 状態不明\n\n`;
     }
     
-    // dailyTriggerの安全なチェック
     if (triggerStatus.dailyTrigger) {
-      message += `日次総チェック（毎日午前2時）: ${triggerStatus.dailyTrigger.enabled ? '✅ 有効' : '❌ 無効'}\n`;
-      message += `  ${triggerStatus.dailyTrigger.info}\n\n`;
+      statusMessage += `日次総チェック（毎日午前2時 JST）: ${dailyEnabled ? '✅ 有効' : '❌ 無効'}\n`;
+      statusMessage += `  ${triggerStatus.dailyTrigger.info}\n\n`;
     } else {
-      message += `日次総チェック（毎日午前2時）: ❌ 状態不明\n\n`;
+      statusMessage += `日次総チェック（毎日午前2時 JST）: ❌ 状態不明\n\n`;
     }
     
-    message += '自動同期を設定しますか？\n\n';
-    message += '「はい」: すべての自動同期を有効化\n';
-    message += '「いいえ」: すべての自動同期を無効化\n';
-    message += '「キャンセル」: 設定を変更しない';
+    // 1. 定期処理の設定
+    const hourlyMessage = statusMessage +
+      '━━━ 定期処理（1時間間隔）の設定 ━━━\n\n' +
+      `現在: ${hourlyEnabled ? '有効' : '無効'}\n\n` +
+      '「はい」: 有効化\n' +
+      '「いいえ」: 無効化\n' +
+      '「キャンセル」: 変更しない（次へ進む）';
     
-    const response = ui.alert('自動同期設定', message, ui.ButtonSet.YES_NO_CANCEL);
+    const hourlyResponse = ui.alert('自動同期設定 - 定期処理', hourlyMessage, ui.ButtonSet.YES_NO_CANCEL);
     
-    if (response === ui.Button.YES) {
-      // 自動同期を有効化
-      const result = setupAllTriggers();
-      
-      if (result.success) {
-        ui.alert(
-          '設定完了',
-          '✅ 自動同期を有効化しました！\n\n' +
-          '• 定期処理: 1時間ごとに自動実行\n' +
-          '• 日次総チェック: 毎日午前2時に自動実行\n\n' +
-          '注文データが自動的に同期されます。',
-          ui.ButtonSet.OK
-        );
-      } else {
-        ui.alert('エラー', '自動同期の設定に失敗しました: ' + result.error, ui.ButtonSet.OK);
+    if (hourlyResponse === ui.Button.YES) {
+      try {
+        setupHourlyTrigger();
+        ui.alert('設定完了', '✅ 定期処理（1時間間隔）を有効化しました。', ui.ButtonSet.OK);
+      } catch (e) {
+        ui.alert('エラー', '定期処理の有効化に失敗しました: ' + e.message, ui.ButtonSet.OK);
       }
-      
-    } else if (response === ui.Button.NO) {
-      // 自動同期を無効化
-      const result = deleteAllSyncTriggers();
-      
-      if (result.success) {
-        ui.alert(
-          '設定完了',
-          '✅ 自動同期を無効化しました。\n\n' +
-          '手動での注文取得は引き続き利用できます。',
-          ui.ButtonSet.OK
-        );
-      } else {
-        ui.alert('エラー', '自動同期の無効化に失敗しました: ' + result.error, ui.ButtonSet.OK);
+    } else if (hourlyResponse === ui.Button.NO) {
+      try {
+        deleteHourlyTrigger();
+        ui.alert('設定完了', '✅ 定期処理（1時間間隔）を無効化しました。', ui.ButtonSet.OK);
+      } catch (e) {
+        ui.alert('エラー', '定期処理の無効化に失敗しました: ' + e.message, ui.ButtonSet.OK);
+      }
+    }
+    
+    // 2. 日次総チェックの設定
+    const updatedStatus = checkTriggerStatus();
+    const dailyStatusText = updatedStatus.dailyTrigger && updatedStatus.dailyTrigger.enabled ? '有効' : '無効';
+    
+    const dailyMessage = '【現在の自動同期設定】\n\n' +
+      `定期処理（1時間間隔）: ${updatedStatus.hourlyTrigger && updatedStatus.hourlyTrigger.enabled ? '✅ 有効' : '❌ 無効'}\n` +
+      `日次総チェック（毎日午前2時 JST）: ${updatedStatus.dailyTrigger && updatedStatus.dailyTrigger.enabled ? '✅ 有効' : '❌ 無効'}\n\n` +
+      '━━━ 日次総チェック（毎日午前2時 JST）の設定 ━━━\n\n' +
+      `現在: ${dailyStatusText}\n\n` +
+      '「はい」: 有効化\n' +
+      '「いいえ」: 無効化\n' +
+      '「キャンセル」: 変更しない（完了）';
+    
+    const dailyResponse = ui.alert('自動同期設定 - 日次総チェック', dailyMessage, ui.ButtonSet.YES_NO_CANCEL);
+    
+    if (dailyResponse === ui.Button.YES) {
+      try {
+        setupDailyTrigger();
+        ui.alert('設定完了', '✅ 日次総チェック（毎日午前2時 JST）を有効化しました。', ui.ButtonSet.OK);
+      } catch (e) {
+        ui.alert('エラー', '日次総チェックの有効化に失敗しました: ' + e.message, ui.ButtonSet.OK);
+      }
+    } else if (dailyResponse === ui.Button.NO) {
+      try {
+        deleteDailyTrigger();
+        ui.alert('設定完了', '✅ 日次総チェック（毎日午前2時 JST）を無効化しました。', ui.ButtonSet.OK);
+      } catch (e) {
+        ui.alert('エラー', '日次総チェックの無効化に失敗しました: ' + e.message, ui.ButtonSet.OK);
       }
     }
     

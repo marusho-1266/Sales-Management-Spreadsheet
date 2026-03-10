@@ -145,7 +145,9 @@ const NAMED_RANGES = {
   SHIPPING_VOLUME_FACTOR: '送料マスタ_容積重量係数',
   PEAK_SEASON_METHODS: '繁忙期料金_配送方法',
   PEAK_SEASON_REGIONS: '繁忙期料金_地域',
-  PEAK_SEASON_AMOUNT: '繁忙期料金_料金'
+  PEAK_SEASON_AMOUNT: '繁忙期料金_料金',
+  PEAK_SEASON_START_DATE: '繁忙期料金_開始日',
+  PEAK_SEASON_END_DATE: '繁忙期料金_終了日'
 };
 
 /**

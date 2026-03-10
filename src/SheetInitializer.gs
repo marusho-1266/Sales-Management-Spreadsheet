@@ -94,6 +94,12 @@ function initializeProfitSheet() {
   // 条件付き書式設定
   setupProfitSheetConditionalFormatting(sheet);
 
+  // マスタシートの存在確認と作成（参照式設定より前に必須）
+  // E16送料セルがgetWeightShippingCost()で重量別送料マスタを参照するため、
+  // マスタが存在しない状態で式を設定すると#ERRORとなる
+  createMasterSheetsIfNeeded(ss);
+  updateExistingShippingMaster(ss);
+
   // 名前付き範囲（簡易）
   try {
     // 送料・関税・為替（実データは各マスタにて管理。ここではセル/列のプレースホルダ設定）
@@ -132,21 +138,21 @@ function initializeProfitSheet() {
       ss.setNamedRange(NAMED_RANGES.PEAK_SEASON_METHODS, peakSeasonMaster.getRange('A2:A'));
       ss.setNamedRange(NAMED_RANGES.PEAK_SEASON_REGIONS, peakSeasonMaster.getRange('B2:B'));
       ss.setNamedRange(NAMED_RANGES.PEAK_SEASON_AMOUNT, peakSeasonMaster.getRange('C2:C'));
+      ss.setNamedRange(NAMED_RANGES.PEAK_SEASON_START_DATE, peakSeasonMaster.getRange('D2:D'));
+      ss.setNamedRange(NAMED_RANGES.PEAK_SEASON_END_DATE, peakSeasonMaster.getRange('E2:E'));
     }
   } catch (e) {
     console.log('マスタ名前付き範囲の設定中に警告:', e);
   }
 
-  // 参照式の設定
+  // 参照式の設定（マスタ・名前付き範囲は上で準備済み）
   setupProfitSheetFormulas(sheet);
-  
-    // マスタシートの存在確認と簡易マスタの作成
-    createMasterSheetsIfNeeded(ss);
-    
-    // 既存の送料マスタを更新（U列追加対応）
-    updateExistingShippingMaster(ss);
-    
-    console.log('利益計算シートの初期化が完了しました');
+
+  // プログラムで式を設定した直後、スプレッドシートに反映と再計算を強制
+  // カスタム関数（getWeightShippingCost等）の初回評価が完了するまで待機
+  SpreadsheetApp.flush();
+
+  console.log('利益計算シートの初期化が完了しました');
 }
 
 /**
@@ -1075,7 +1081,7 @@ function setupProfitSheetConditionalFormatting(sheet) {
     const errorRange = sheet.getRange('B8:B40');
     const errorRule = SpreadsheetApp.newConditionalFormatRule()
       .setRanges([errorRange])
-      .whenFormulaSatisfies('=ISERROR(B8)')
+      .whenFormulaSatisfied('=ISERROR(B8)')
       .setBackground('#FF0000') // 赤色
       .setFontColor('#FFFFFF') // 白色文字
       .build();
@@ -1504,6 +1510,8 @@ function updateProfitSheetFormulas() {
         ss.setNamedRange(NAMED_RANGES.PEAK_SEASON_METHODS, peakSeasonMaster.getRange('A2:A'));
         ss.setNamedRange(NAMED_RANGES.PEAK_SEASON_REGIONS, peakSeasonMaster.getRange('B2:B'));
         ss.setNamedRange(NAMED_RANGES.PEAK_SEASON_AMOUNT, peakSeasonMaster.getRange('C2:C'));
+        ss.setNamedRange(NAMED_RANGES.PEAK_SEASON_START_DATE, peakSeasonMaster.getRange('D2:D'));
+        ss.setNamedRange(NAMED_RANGES.PEAK_SEASON_END_DATE, peakSeasonMaster.getRange('E2:E'));
       }
       console.log('名前付き範囲を設定しました');
     } catch (e) {
