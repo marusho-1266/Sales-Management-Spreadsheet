@@ -564,7 +564,6 @@ function recordSyncHistory(syncInfo) {
     }
     
     const values = [
-      new Date(),
       syncInfo.syncType || '',
       syncInfo.fetched != null ? syncInfo.fetched : 0,
       syncInfo.inserted != null ? syncInfo.inserted : 0,
@@ -577,18 +576,20 @@ function recordSyncHistory(syncInfo) {
     let startRow = findSyncHistoryStartRow(settingsSheet);
     
     if (startRow === -1) {
-      // 存在しない場合は作成（最終行の直後に8行追加）
+      // 存在しない場合は作成（最終行の直後に7行追加）
       const lastRow = settingsSheet.getLastRow();
       startRow = lastRow + 1;
       console.log('同期履歴ブロックを作成しました:', startRow);
     }
     
-    const fields = ['同期日時', '同期タイプ', '取得件数', '登録件数', '失敗件数', '処理時間(秒)', 'ステータス', 'メッセージ'];
+    const fields = ['同期タイプ', '取得件数', '登録件数', '失敗件数', '処理時間(秒)', 'ステータス', 'メッセージ'];
     const rows = fields.map((key, i) => [key, values[i]]);
-    
-    settingsSheet.getRange(startRow, 1, fields.length, 2).setValues(rows);
-    settingsSheet.getRange(startRow, 1, fields.length, 1).setFontWeight('bold');
-    settingsSheet.getRange(startRow, 2, fields.length, 1).setNumberFormat('yyyy-mm-dd HH:mm:ss'); // 同期日時のみ日時書式
+    const endRow = startRow + fields.length - 1;
+    const rangeA1 = `A${startRow}:B${endRow}`;
+    const rangeA1ColA = `A${startRow}:A${endRow}`;
+
+    settingsSheet.getRange(rangeA1).setValues(rows);
+    settingsSheet.getRange(rangeA1ColA).setFontWeight('bold');
     
     console.log('同期履歴を記録しました:', syncInfo);
     
@@ -599,7 +600,7 @@ function recordSyncHistory(syncInfo) {
 
 /**
  * 同期履歴ブロックの開始行を検索
- * 列Aで「同期日時」を検索（設定シートと同じA=ヘッダー、B=値の形式）
+ * 列Aで「同期タイプ」を検索（旧形式の「同期日時」もフォールバックで検索）
  * @param {Sheet} sheet - 検索対象のシート
  * @returns {number} 開始行番号（見つからない場合は-1）
  */
@@ -608,7 +609,8 @@ function findSyncHistoryStartRow(sheet) {
     const data = sheet.getDataRange().getValues();
     
     for (let i = 0; i < data.length; i++) {
-      if (data[i][0] === '同期日時') {
+      const header = data[i][0];
+      if (header === '同期タイプ' || header === '同期日時') {
         return i + 1;
       }
     }
@@ -647,8 +649,7 @@ function sendSyncNotification(syncResult) {
     const subject = `[Joom注文同期] ${syncResult.syncType} - エラーあり`;
     
     let body = `Joom注文同期が完了しましたが、一部エラーがありました。\n\n`;
-    body += `【同期タイプ】${syncResult.syncType}\n`;
-    body += `【同期日時】${Utilities.formatDate(new Date(), 'JST', 'yyyy-MM-dd HH:mm:ss')}\n\n`;
+    body += `【同期タイプ】${syncResult.syncType}\n\n`;
     body += `【結果】\n`;
     body += `取得件数: ${syncResult.fetched}件\n`;
     body += `登録成功: ${syncResult.inserted}件\n`;
@@ -692,8 +693,7 @@ function sendErrorNotification(errorInfo) {
     const subject = `[Joom注文同期] ${errorInfo.syncType} - エラー発生`;
     
     let body = `Joom注文同期中にエラーが発生しました。\n\n`;
-    body += `【同期タイプ】${errorInfo.syncType}\n`;
-    body += `【同期日時】${Utilities.formatDate(new Date(), 'JST', 'yyyy-MM-dd HH:mm:ss')}\n\n`;
+    body += `【同期タイプ】${errorInfo.syncType}\n\n`;
     body += `【エラー内容】\n${errorInfo.error}\n\n`;
     body += `設定シートとログを確認してください。`;
     
