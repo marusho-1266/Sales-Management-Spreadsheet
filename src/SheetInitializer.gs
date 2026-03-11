@@ -1780,15 +1780,20 @@ function syncPriceHistoryMenu() {
   const ui = SpreadsheetApp.getUi();
   
   try {
+    if (typeof syncPriceHistoryFromInventory !== 'function') {
+      ui.alert('エラー', 'syncPriceHistoryFromInventory 関数が見つかりません。PriceHistory.gs がプロジェクトに含まれているか確認してください。', ui.ButtonSet.OK);
+      return;
+    }
     const result = syncPriceHistoryFromInventory();
     if (result) {
       ui.alert('価格履歴同期完了', '在庫管理シートから価格履歴を正常に同期しました。', ui.ButtonSet.OK);
     } else {
-      ui.alert('エラー', '価格履歴の同期中にエラーが発生しました。', ui.ButtonSet.OK);
+      ui.alert('エラー', '価格履歴の同期に失敗しました。在庫管理・価格履歴シートが存在するか確認し、実行ログ（拡張機能＞Apps Script＞実行数）で詳細を確認してください。', ui.ButtonSet.OK);
     }
   } catch (error) {
     console.error('価格履歴同期中にエラーが発生しました:', error);
-    ui.alert('エラー', '価格履歴の同期中にエラーが発生しました: ' + error.message, ui.ButtonSet.OK);
+    const errMsg = error && error.message ? String(error.message) : String(error);
+    ui.alert('エラー', '価格履歴の同期中にエラーが発生しました。\n\n' + errMsg + '\n\n詳細は実行ログ（拡張機能＞Apps Script＞実行数）で確認してください。', ui.ButtonSet.OK);
   }
 }
 

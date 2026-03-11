@@ -393,21 +393,36 @@ function updatePriceHistory(productId, newPurchasePrice, newSellingPrice, notes 
  * 在庫管理シートの価格変更を検出して価格履歴を更新
  */
 function syncPriceHistoryFromInventory() {
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  const inventorySheet = spreadsheet.getSheetByName(SHEET_NAMES.INVENTORY);
-  const priceHistorySheet = spreadsheet.getSheetByName(SHEET_NAMES.PRICE_HISTORY);
-  
-  if (!inventorySheet || !priceHistorySheet) {
-    console.error('必要なシートが見つかりません');
-    return false;
-  }
-  
-  const inventoryData = inventorySheet.getDataRange().getValues();
-  let updateCount = 0;
-  let skipCount = 0;
-  
-  // 価格履歴データを一度だけ取得してルックアップテーブルを作成
-  const priceHistoryData = priceHistorySheet.getDataRange().getValues();
+  try {
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    const inventorySheet = spreadsheet.getSheetByName(SHEET_NAMES.INVENTORY);
+    const priceHistorySheet = spreadsheet.getSheetByName(SHEET_NAMES.PRICE_HISTORY);
+    
+    if (!inventorySheet || !priceHistorySheet) {
+      console.error('必要なシートが見つかりません。在庫管理または価格履歴シートを確認してください。');
+      return false;
+    }
+    
+    // 空シートではgetDataRange()がエラーになるため、事前チェック
+    let inventoryData = [];
+    if (inventorySheet.getLastRow() > 0 && inventorySheet.getLastColumn() > 0) {
+      inventoryData = inventorySheet.getDataRange().getValues();
+    } else {
+      console.warn('在庫管理シートにデータがありません');
+      return true; // エラーではなく正常終了として扱う
+    }
+    
+    let updateCount = 0;
+    let skipCount = 0;
+    
+    // 価格履歴データを一度だけ取得してルックアップテーブルを作成（空シート対策）
+    let priceHistoryData = [];
+    if (priceHistorySheet.getLastRow() > 0 && priceHistorySheet.getLastColumn() > 0) {
+      priceHistoryData = priceHistorySheet.getDataRange().getValues();
+    } else {
+      // 価格履歴シートが空の場合は初期化を促す
+      console.warn('価格履歴シートが空です。個別シート初期化で価格履歴シートを初期化してください。');
+    }
   const priceHistoryLookup = new Map();
   
   // 価格履歴データのルックアップテーブルを作成（O(m)）
@@ -452,4 +467,9 @@ function syncPriceHistoryFromInventory() {
   
   console.log(`${updateCount}件の価格履歴を更新、${skipCount}件をスキップしました`);
   return true;
+  
+  } catch (error) {
+    console.error('価格履歴同期エラー:', error);
+    throw error; // 呼び出し元でメッセージ表示するために再スロー
+  }
 }
