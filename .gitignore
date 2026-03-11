@@ -47,3 +47,4 @@ inventory_scraper/InventoryScraper.exe
 inventory_scraper/配布用/
 .clasp.json_bk
 doc/ignore/影響範囲調査_販売価格USD列追加.md
+inventory_scraper/テスト用/
